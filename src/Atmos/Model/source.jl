@@ -156,6 +156,7 @@ struct RayleighSponge{FT} <: Source
     "Sponge exponent"
     γ::FT
 end
+
 function atmos_source!(
     s::RayleighSponge,
     atmos::AtmosModel,
@@ -166,10 +167,12 @@ function atmos_source!(
     t::Real,
     direction,
 )
+    #Top sponge
     z = altitude(atmos, aux)
     if z >= s.z_sponge
         r = (z - s.z_sponge) / (s.z_max - s.z_sponge)
         β_sponge = s.α_max * sinpi(r / 2)^s.γ
         source.ρu -= β_sponge * (state.ρu .- state.ρ * s.u_relaxation)
     end
+
 end
