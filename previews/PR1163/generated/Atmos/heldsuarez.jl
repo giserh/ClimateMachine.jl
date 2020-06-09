@@ -70,7 +70,7 @@ function held_suarez_forcing!(
     ##TODO: replace _p0 with dynamic surface pressure in Δσ calculations to
     #account for topography, but leave unchanged for calculations of σ involved
     #in T_equil
-    _p0 = 1.01325e5
+    _p0 = FT(1.01325e5)
     σ = p / _p0
     exner_p = σ^(_R_d / _cp_d)
     Δσ = (σ - σ_b) / (1 - σ_b)
@@ -155,11 +155,19 @@ driver_config = ClimateMachine.AtmosGCMConfiguration(
     model = model,
 );
 
+ode_solver_type = ClimateMachine.IMEXSolverType(
+    splitting_type = HEVISplitting(),
+    implicit_model = AtmosAcousticGravityLinearModel,
+    implicit_solver = ManyColumnLU,
+    solver_method = ARK2GiraldoKellyConstantinescu,
+)
+
 solver_config = ClimateMachine.SolverConfiguration(
     timestart,
     timeend,
     driver_config,
     Courant_number = FT(0.2),
+    ode_solver_type = ode_solver_type,
     init_on_cpu = true,
     CFL_direction = HorizontalDirection(),
     diffdir = HorizontalDirection(),

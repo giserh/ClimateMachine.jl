@@ -124,11 +124,11 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
         data_config = data_config,
     )
 
-    ode_solver = ClimateMachine.MultirateSolverType(
-        linear_model = AtmosAcousticGravityLinearModel,
-        slow_method = LSRK144NiegemannDiehlBusch,
+    ode_solver = ClimateMachine.MISSolverType(;
+        splitting_type = ClimateMachine.SlowFastSplitting(),
+        mis_method = MIS2,
         fast_method = LSRK144NiegemannDiehlBusch,
-        timestep_ratio = 10,
+        nsubsteps = 10,
     )
 
     config = ClimateMachine.AtmosLESConfiguration(
@@ -165,7 +165,7 @@ function main()
 
     t0 = FT(0)
 
-    CFLmax = FT(5)
+    CFLmax = FT(20)
     timeend = FT(1000)
     xmax, ymax, zmax = FT(250), FT(250), FT(500)
 

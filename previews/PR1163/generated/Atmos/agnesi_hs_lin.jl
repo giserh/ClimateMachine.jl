@@ -91,7 +91,7 @@ function config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     c_sponge = 1
     amp = 1.0
 
-    zsponge = FT(12500.0)
+    zsponge = FT(20000.0)
     rayleigh_sponge =
         RayleighSponge{FT}(zmax, zsponge, c_sponge, u_relaxation, 2)
 
@@ -102,15 +102,17 @@ function config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
 
     source = (Gravity(), rayleigh_sponge)
 
-    temp_profile_ref = DecayingTemperatureProfile{FT}(param_set)
+    #temp_profile_ref = DecayingTemperatureProfile{FT}(param_set)
+    T_virt = FT(250)
+    temp_profile_ref = IsothermalProfile(param_set, T_virt)
     ref_state = HydrostaticState(temp_profile_ref)
     nothing # hide
 
-    _C_smag = FT(0.23)
+    _C_smag = FT(0.21)
     model = AtmosModel{FT}(
         AtmosLESConfigType,
         param_set;
-        turbulence = SmagorinskyLilly(_C_smag),
+        turbulence = Vreman(_C_smag),
         moisture = DryModel(),
         source = source,
         tracers = NoTracers(),
@@ -140,17 +142,16 @@ function main()
     FT = Float64
 
     N = 4
-    Δh = FT(1200)
+    Δh = FT(500)
     Δv = FT(240)
     resolution = (Δh, Δh, Δv)
-    xmax = FT(240000)
-    ymax = FT(4800)
-    zmax = FT(30000)
+    xmax = FT(244000)
+    ymax = FT(2000)
+    zmax = FT(35000)
     t0 = FT(0)
-    hrs = FT(1)
-    timeend = FT(hrs * 60 * 60)
+    timeend =  FT(15000) #FT(hrs * 60 * 60)
 
-    Courant = FT(0.25)
+    Courant = FT(0.2)
 
     driver_config = config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
@@ -161,14 +162,32 @@ function main()
         Courant_number = Courant,
     )
 
-    cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
-        Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
+    #cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
+
+    #end
+
+    #Exponential filter:
+#=    filterorder = 64
+    filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+    cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
+        @views begin
+            solver_config.Q.data[:, 2, :] .-= 20*solver_config.Q[:,1,:]
+            Filters.apply!(
+                solver_config.Q,
+                2:4,
+                solver_config.dg.grid,
+                filter,
+            )
+            solver_config.Q.data[:, 2, :] .+= 20*solver_config.Q[:,1,:]
+        end
         nothing
     end
+=#
+    #End exponential filter
 
     result = ClimateMachine.invoke!(
         solver_config;
-        #user_callbacks = (cbtmarfilter,),
+        #user_callbacks = (cbfilter,),
         check_euclidean_distance = true,
     )
 
