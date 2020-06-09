@@ -199,11 +199,18 @@ interpol = ClimateMachine.InterpolationConfiguration(
     resolution,
 )
 
-dgn_config = setup_dump_state_and_aux_diagnostics(
-    interval,
-    driver_config.name,
-    interpol = interpol,
-)
+dgn_config = [
+    setup_dump_state_diagnostics(
+        interval,
+        driver_config.name,
+        interpol = interpol,
+    ),
+    setup_dump_aux_diagnostics(
+        interval,
+        driver_config.name,
+        interpol = interpol,
+    ),
+]
 nothing # hide
 
 result = ClimateMachine.invoke!(
