@@ -55,7 +55,7 @@ include("data_tests.jl")
 
         # for FT in float_types
         profiles = PhaseEquilProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
         Φ = FT(1)
         Random.seed!(15)
         perturbation = FT(0.1) * rand(length(T))
@@ -373,7 +373,7 @@ end
     for FT in float_types
         rtol = FT(1e-2)
         profiles = PhaseEquilProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
         # PhaseEquil
         ts_exact = PhaseEquil.(Ref(param_set), e_int, ρ, q_tot, 100, FT(1e-3))
@@ -579,7 +579,7 @@ end
         _MSLP = FT(MSLP(param_set))
 
         profiles = PhaseDryProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
         # PhaseDry
         ts = PhaseDry.(Ref(param_set), e_int, ρ)
@@ -596,7 +596,7 @@ end
         @test all(internal_energy.(ts_p) .≈ internal_energy.(ts))
 
         profiles = PhaseEquilProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
         # PhaseEquil
         ts =
@@ -758,33 +758,47 @@ end
         )
 
 
-        # To test:
-        # Test relative humidity and virtual temperature functions:
+        profiles = PhaseEquilProfiles(param_set, FT)
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
+
+        # Test that relative humidity is 1 for saturated conditions
+        q_sat = q_vap_saturation.(Ref(param_set), T, ρ, Ref(phase_type))
+        q_pt_sat = PhasePartition.(q_sat)
+        q_vap = vapor_specific_humidity.(q_pt_sat)
+        @test all(getproperty.(q_pt_sat, :liq) .≈ 0)
+        @test all(getproperty.(q_pt_sat, :ice) .≈ 0)
+        @test all(q_vap .≈ q_sat)
+
+        # Compute thermodynamic consistent pressure
+        p_sat = air_pressure.(Ref(param_set), T, ρ, q_pt_sat)
+
+        # Test that density remains consistent
+        ρ_rec = air_density.(Ref(param_set), T, p_sat, q_pt_sat)
+        @test all.(ρ_rec ≈ ρ)
+
+        RH = relative_humidity.(Ref(param_set), T, p_sat, Ref(phase_type), q_pt_sat)
+        @test all(RH .≈ 1)
+
+        # Test that RH is zero for dry conditions
+        q_pt_dry = PhasePartition.(zeros(FT, length(T)))
+        p_dry = air_pressure.(Ref(param_set), T, ρ, q_pt_dry)
+        RH = relative_humidity.(Ref(param_set), T, p_dry, Ref(phase_type), q_pt_dry)
+        @test all(RH .≈ 0)
+
+
+        # virtual temperature functions:
         # compute temperature from air_temperature_from_virtual_temperature
         # given T_virt and RH and make sure this is equal to input temperature
         # invert to make sure we get T back (mask for RH < 1).
 
         profiles = PhaseEquilProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
-        phase_type = PhaseEquil
+
+
         _R_d = FT(R_d(param_set))
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)
-
-        q_sat = q_vap_saturation.(Ref(param_set), T, ρ, phase_type)
-        q_pt_sat = PhasePartition.(q_sat)
-
-        # Why are RH ≠ 1 here?
-        RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt_sat)
-        @test all(RH .≈ 1)
-        @show RH[1:20]
-        @show T[1:20]
-
-        q_pt_sat = PhasePartition.(q_sat .* 0)
-        RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt_sat)
-        @test all(RH .≈ 0)
-
 
         RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
         RH_mask = RH .<= 1
@@ -800,11 +814,11 @@ end
 
         T_virt_rec = gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T
         mask_err = abs.(T_virt_rec .- T_virt) .> 0.1
-        @show RH[mask_err][1:10]
-        @show T[mask_err][1:10]
-        @show T_virt_rec[mask_err][1:10]
-        @show T_virt[mask_err][1:10]
-        @show max(abs.(T_virt[RH_mask] - T_virt_rec[RH_mask])...)
+        # @show RH[mask_err][1:10]
+        # @show T[mask_err][1:10]
+        # @show T_virt_rec[mask_err][1:10]
+        # @show T_virt[mask_err][1:10]
+        # @show max(abs.(T_virt[RH_mask] - T_virt_rec[RH_mask])...)
     end
 
 end
@@ -816,7 +830,7 @@ end
     # with converging to the same tolerances as `Float64`, so they're relaxed here.
     FT = Float32
     profiles = PhaseEquilProfiles(param_set, FT)
-    @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+    @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
     ρu = FT[1.0, 2.0, 3.0]
     e_pot = FT(100.0)
@@ -924,7 +938,7 @@ end
 
     FT = Float64
     profiles = PhaseEquilProfiles(param_set, FT)
-    @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH
+    @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
     # PhasePartition test is noisy, so do this only once:
     ts_dry = PhaseDry(param_set, first(e_int), first(ρ))

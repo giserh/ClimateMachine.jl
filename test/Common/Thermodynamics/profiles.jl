@@ -55,6 +55,7 @@ struct ProfileSet{FT}
     q_pt::Array{PhasePartition{FT}}     # Phase partition
     RH::Array{FT}                       # Relative humidity
     SS::Array{FT}                       # Super saturation
+    phase_type::Type{<:ThermodynamicState}
 end
 
 """
@@ -141,6 +142,7 @@ function PhaseDryProfiles(
     param_set::AbstractParameterSet,
     ::Type{FT},
 ) where {FT}
+    phase_type = PhaseDry
 
     z_range, relative_sat, T_surface, T_min = input_config(FT)
     z, T_virt, p, RS =
@@ -150,7 +152,6 @@ function PhaseDryProfiles(
     ρ = p ./ (_R_d .* T)
 
     # Additional variables
-    phase_type = PhaseDry
     q_tot = zeros(FT, length(RS))
     q_pt = PhasePartition_equil.(Ref(param_set), T, ρ, q_tot, Ref(phase_type))
     e_int = internal_energy.(Ref(param_set), T, q_pt)
@@ -177,6 +178,7 @@ function PhaseDryProfiles(
         q_pt,
         RH,
         SS,
+        phase_type
     )
 end
 
@@ -193,26 +195,26 @@ function PhaseEquilProfiles(
     param_set::AbstractParameterSet,
     ::Type{FT},
 ) where {FT}
+    phase_type = PhaseEquil
 
     z_range, relative_sat, T_surface, T_min = input_config(FT)
     z, T_virt, p, RS =
         shared_profiles(param_set, z_range, relative_sat, T_surface, T_min)
 
-    phase_type = PhaseEquil # TODO: Verify this!
     T = air_temperature_from_virtual_temperature.(
         Ref(param_set),
         T_virt,
         p,
         RS,
         Ref(phase_type),
-        ResidualTolerance{FT}(1e-1),
+        ResidualTolerance{FT}(1e-3),
         10
         )
 
     # Compute total specific humidity from temperature, pressure
     # and relative saturation, and partition the saturation excess
     # according to temperature.
-    q_tot = vapor_specific_humidity.(Ref(param_set), T, p, RS, Ref(phase_type))
+    q_tot = q_vap_from_RH.(Ref(param_set), T, p, RS, Ref(phase_type))
     liq_frac = liquid_fraction.(Ref(param_set), T, Ref(phase_type))
     q_liq = max.(Ref(0), RS .- 1) .* q_tot .* liq_frac
     q_ice = max.(Ref(0), RS .- 1) .* q_tot .* (1 .- liq_frac)
@@ -251,5 +253,6 @@ function PhaseEquilProfiles(
         q_pt,
         RH,
         SS,
+        phase_type
     )
 end

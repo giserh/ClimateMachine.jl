@@ -32,6 +32,7 @@ export air_temperature_from_liquid_ice_pottemp,
     air_temperature_from_liquid_ice_pottemp_given_pressure
 export air_temperature_from_liquid_ice_pottemp_non_linear
 export vapor_specific_humidity
+export q_vap_from_RH
 export virtual_temperature
 export air_temperature_from_virtual_temperature
 export condensate, has_condensate
@@ -159,7 +160,7 @@ total_specific_humidity(ts::PhaseDry{FT}) where {FT} = FT(0)
 total_specific_humidity(ts::PhaseNonEquil) = ts.q.tot
 
 """
-    vapor_specific_humidity(
+    q_vap_from_RH(
         param_set::AbstractParameterSet,
         T::FT,
         p::FT,
@@ -172,7 +173,7 @@ Vapor specific humidity, given
  - `p` pressure
  - `RH` relative humidity
 """
-function vapor_specific_humidity(
+function q_vap_from_RH(
         param_set::AbstractParameterSet,
         T::FT,
         p::FT,
@@ -1463,7 +1464,7 @@ function air_temperature_from_virtual_temperature(
         _R_d = FT(R_d(param_set))
         _R_v = FT(R_v(param_set))
         ρ = p/(_R_d*T_virt)
-        q_vap = vapor_specific_humidity(param_set, T, p, RH, phase_type)
+        q_vap = q_vap_from_RH(param_set, T, p, RH, phase_type)
         q_tot = q_vap
         q_pt = PhasePartition_equil(param_set, T, ρ, q_tot, phase_type)
         R_m = gas_constant_air(param_set, q_pt)
@@ -1785,7 +1786,7 @@ function relative_humidity(
     q::PhasePartition{FT} = q_pt_0(FT),
 ) where {FT <: Real}
     _R_v::FT = R_v(param_set)
-    q_vap = q.tot - q.liq - q.ice
+    q_vap = vapor_specific_humidity(q)
     p_vap = q_vap * air_density(param_set, T, p, q) * _R_v * T
     p_vap_sat = saturation_vapor_pressure(param_set, phase_type, T)
     return p_vap / p_vap_sat
