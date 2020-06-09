@@ -4,8 +4,6 @@ A set of callback functions to be used with an `AbstractODESolver`
 module GenericCallbacks
 using MPI
 
-using ..ODESolvers
-
 """
     EveryXWallTimeSeconds(f, time, mpicomm)
 
@@ -67,7 +65,7 @@ mutable struct EveryXSimulationTime
     "function to call to initialize the callback"    
     init
     function EveryXSimulationTime(func, Δtime, init=() -> nothing)
-        lastcbtime = [ODESolvers.gettime(solver)]
+        lastcbtime = 0
         new(0, Δtime, func, init)
     end
 end

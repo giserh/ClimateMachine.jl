@@ -13,6 +13,9 @@ using ..MPIStateArrays: array_device, realview
 
 export solve!, updatedt!, gettime
 
+include( "GenericCallbacks.jl")
+
+
 abstract type AbstractODESolver end
 """
     gettime(solver::AbstractODESolver)
@@ -108,7 +111,7 @@ function solve!(
 
     # Loop through an initialize callbacks (if they need it)
     foreach(callbacks) do callback
-        initialize!(callback, solver, Q, param, t0)
+        GenericCallbacks.initialize!(callback, solver, Q, param, t0)
     end
 
     step = 0
