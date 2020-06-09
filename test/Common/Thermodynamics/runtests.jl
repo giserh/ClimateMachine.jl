@@ -791,11 +791,7 @@ end
         # given T_virt and RH and make sure this is equal to input temperature
         # invert to make sure we get T back (mask for RH < 1).
 
-        profiles = PhaseEquilProfiles(param_set, FT)
-        @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
-
-
-
+        @test all(p .≈ air_pressure.(Ref(param_set), T, ρ, q_pt))
         _R_d = FT(R_d(param_set))
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)

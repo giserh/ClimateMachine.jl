@@ -99,7 +99,7 @@ Compute profiles shared across `PhaseDry`,
 `PhaseEquil` and `PhaseNonEquil` thermodynamic
 states, including:
  - `z` altitude
- - `T_virt` virtual temperature
+ - `T` temperature
  - `p` pressure
  - `RS` relative saturation
 """
@@ -112,21 +112,26 @@ function shared_profiles(
 ) where {FT}
     n_RS = length(relative_sat)
     n = length(z_range)
-    T_virt = Array{FT}(undef, n * n_RS)
+    T = Array{FT}(undef, n * n_RS)
     p = Array{FT}(undef, n * n_RS)
     RS = Array{FT}(undef, n * n_RS)
     z = Array{FT}(undef, n * n_RS)
     linear_indices = LinearIndices((1:n, 1:n_RS))
+    # We take the virtual temperature, returned here,
+    # as the temperature, and then compute a thermodynamic
+    # state consistent with that temperature. This profile
+    # will not be in hydrostatic balance, but this does not
+    # matter for the thermodynamic test profiles.
     profile = DecayingTemperatureProfile{FT}(param_set, T_surface, T_min)
     for i in linear_indices.indices[1]
         for j in linear_indices.indices[2]
             k = linear_indices[i, j]
             z[k] = z_range[i]
-            T_virt[k], p[k] = profile(param_set, z[k])
+            T[k], p[k] = profile(param_set, z[k])
             RS[k] = relative_sat[j]
         end
     end
-    return z, T_virt, p, RS
+    return z, T, p, RS
 end
 
 ####
@@ -197,19 +202,12 @@ function PhaseEquilProfiles(
 ) where {FT}
     phase_type = PhaseEquil
 
+    # Prescribe z_range, relative_sat, T_surface, T_min
     z_range, relative_sat, T_surface, T_min = input_config(FT)
-    z, T_virt, p, RS =
-        shared_profiles(param_set, z_range, relative_sat, T_surface, T_min)
 
-    T = air_temperature_from_virtual_temperature.(
-        Ref(param_set),
-        T_virt,
-        p,
-        RS,
-        Ref(phase_type),
-        ResidualTolerance{FT}(1e-3),
-        10
-        )
+    # Compute T, p, from DecayingTemperatureProfile, (reshape RS)
+    z, T, p, RS =
+        shared_profiles(param_set, z_range, relative_sat, T_surface, T_min)
 
     # Compute total specific humidity from temperature, pressure
     # and relative saturation, and partition the saturation excess
