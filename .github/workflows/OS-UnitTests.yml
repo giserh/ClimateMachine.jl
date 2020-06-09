@@ -1,0 +1,35 @@
+name: OS Unit Tests
+
+on:
+  push:
+    branches:    
+      - staging
+      - trying
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    maxtrix:
+      os: [ubuntu-latest, windows-latest, macos-latest]
+    strategy:
+      fail-fast: true
+
+    steps:
+    - uses: actions/checkout@v1.0.0
+
+    - name: Set up Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: 1.4
+
+    - name: Install Project Packages
+      run: |
+        julia --project=@. -e 'using Pkg; Pkg.instantiate(); Pkg.build()'
+
+    - name: Build System Image
+      run: |
+        julia --project=@. .dev/systemimage/climate_machine_image.jl ClimateMachine.so true
+
+    - name: Run Unit Tests
+      run: |
+        julia --project=@. -J ClimateMachine.so -e 'using Pkg; Pkg.test()'
