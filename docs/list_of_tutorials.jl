@@ -1,10 +1,12 @@
 ####
-#### Defines list of tutorials given `generated_dir`
+#### Defines list of tutorials given `GENERATED_DIR`
 ####
 
-generate_tutorials = true
+generate_tutorials =
+    parse(Bool, get(ENV, "CLIMATEMACHINE_DOCS_GENERATE_TUTORIALS", "true"))
 
 tutorials = []
+
 
 # Allow flag to skip generated
 # tutorials since this is by
@@ -13,11 +15,8 @@ tutorials = []
 if generate_tutorials
 
     # generate tutorials
-    import Literate
 
     include("pages_helper.jl")
-
-    tutorials_dir = joinpath(@__DIR__, "..", "tutorials")
 
     tutorials = [
         "Atmos" => [
@@ -54,14 +53,13 @@ if generate_tutorials
 
     # Prepend tutorials_dir
     tutorials_jl = flatten_to_array_of_strings(get_second(tutorials))
-    println("Building literate tutorials:")
-    for tutorial in tutorials_jl
-        println("    $(tutorial)")
-    end
-    transform(x) = joinpath(basename(generated_dir), replace(x, ".jl" => ".md"))
+    println("Building literate tutorials...")
+
+    transform(x) = joinpath(basename(GENERATED_DIR), replace(x, ".jl" => ".md"))
     tutorials = transform_second(x -> transform(x), tutorials)
 
-    skip_execute = [
+    @everywhere tutorials_dir = joinpath(@__DIR__, "..", "tutorials")
+    @everywhere skip_execute = [
         "Atmos/dry_rayleigh_benard.jl",               # takes too long
         "Atmos/heldsuarez.jl",                        # broken
         "Atmos/risingbubble.jl",                      # broken
@@ -73,9 +71,9 @@ if generate_tutorials
 
     tutorials_jl = map(x -> joinpath(tutorials_dir, x), tutorials_jl)
 
-    for tutorial in tutorials_jl
+    @everywhere function generate_tutorial(tutorial)
         gen_dir =
-            joinpath(generated_dir, relpath(dirname(tutorial), tutorials_dir))
+            joinpath(GENERATED_DIR, relpath(dirname(tutorial), tutorials_dir))
         input = abspath(tutorial)
         script = Literate.script(input, gen_dir)
         code = strip(read(script, String))
@@ -84,6 +82,8 @@ if generate_tutorials
         if !any(occursin.(skip_execute, Ref(input)))
             Literate.notebook(input, gen_dir, execute = true)
         end
+
     end
 
+    pmap(generate_tutorial, tutorials_jl)
 end
