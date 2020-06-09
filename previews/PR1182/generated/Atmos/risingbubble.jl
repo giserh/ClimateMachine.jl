@@ -11,9 +11,6 @@ using ClimateMachine.GenericCallbacks
 
 using ClimateMachine.ODESolvers
 
-using ClimateMachine.Mesh.Filters
-using ClimateMachine.DGMethods: FilterStateConservative
-
 using ClimateMachine.TemperatureProfiles
 
 using ClimateMachine.Thermodynamics
