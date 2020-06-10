@@ -37,11 +37,12 @@ function init_agnesi_hs_lin!(bl, state, aux, (x, y, z), t)
     c::FT = c_v / R_gas
     c2::FT = R_gas / c_p
 
+    #Define initial thermal field as isothermal
     Tiso::FT = 250.0
     θ0::FT = Tiso
 
-    #Calculate the Brunt-Vaisaila frequency for an isothermal field
-    Brunt::FT = _grav / sqrt(c_p * Tiso)
+    #Assign a value to the Brunt-Vaisala frquencey:
+    Brunt::FT = 0.01
     Brunt2::FT = Brunt * Brunt
     g2::FT = _grav * _grav
 
@@ -54,7 +55,7 @@ function init_agnesi_hs_lin!(bl, state, aux, (x, y, z), t)
     ts = PhaseDry(bl.param_set, e_int, ρ)
 
     #initial velocity
-    u = FT(20.0)
+    u = FT(10.0)
 
     #State (prognostic) variable assignment
     e_kin = FT(0)                                       # kinetic energy
@@ -78,7 +79,7 @@ function warp_agnesi(xin, yin, zin; xmax = 1000.0, ymax = 1000.0, zmax = 1000.0)
 
     FT = eltype(xin)
 
-    ac = FT(10000)
+    ac = FT(1000)
     hm = FT(1)
     xc = FT(0.5) * xmax
     zdiff = hm / (FT(1) + ((xin - xc) / ac)^2)
@@ -94,13 +95,13 @@ function config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     #``
     #where
 
-    u_relaxation = SVector(FT(20), FT(0), FT(0))
+    u_relaxation = SVector(FT(10), FT(0), FT(0))
 
     #Wave damping coefficient (1/s)
     sponge_ampz = FT(0.5)
 
     #Vertical level where the absorbing layer starts
-    z_s = FT(25000.0)
+    z_s = FT(10000.0)
 
     #Pass the sponge parameters to the sponge calculator
     rayleigh_sponge =
@@ -112,16 +113,15 @@ function config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
         solver_method = LSRK144NiegemannDiehlBusch,
     )
 
-    #Setup the source terms for this problem:
     source = (Gravity(), rayleigh_sponge)
 
     #Define the reference state:
-    T_virt = FT(250)
+    T_virt = FT(280)
     temp_profile_ref = IsothermalProfile(param_set, T_virt)
     ref_state = HydrostaticState(temp_profile_ref)
     nothing # hide
 
-    _C_smag = FT(0.21)
+    _C_smag = FT(0.0)
     model = AtmosModel{FT}(
         AtmosLESConfigType,
         param_set;
@@ -134,7 +134,7 @@ function config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     )
 
     config = ClimateMachine.AtmosLESConfiguration(
-        "Agnesi_HS_LINEAR",      # Problem title [String]
+        "Agnesi_NH_LINEAR",      # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -154,19 +154,22 @@ function main()
 
     FT = Float64
 
+    #Define the polynomial order and effeftive grid spacings:
     N = 4
-    Δh = FT(1000)
-    Δv = FT(240)
+    Δh = FT(340)
+    Δv = FT(200)
     resolution = (Δh, Δh, Δv)
-    xmax = FT(244000)
+
+    #Define the domain size in all 3 directions
+    xmax = FT(144000)
     ymax = FT(4000)
-    zmax = FT(50000)
+    zmax = FT(30000)
     t0 = FT(0)
-    timeend = FT(15000) #FT(hrs * 60 * 60)
+    timeend = FT(18000)
 
     #Define the max Courant for the time time integrator (ode_solver).
     #The default value is 1.7 for LSRK144:
-    Courant = FT(0.5)
+    Courant = FT(1.5)
 
     driver_config = config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
