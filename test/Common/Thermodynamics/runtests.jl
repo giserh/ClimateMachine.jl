@@ -791,6 +791,13 @@ end
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)
 
+        # # Test q_vap_from_RH-relative_humidity consistency
+        # RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
+        # q_vap_rec = q_vap_from_RH.(Ref(param_set), T, p, RH, Ref(phase_type))
+        # q_vap = q_vap_saturation.(Ref(param_set), T, ρ, Ref(phase_type))
+        # @test all(q_vap .≈ q_vap_rec)
+        # @show max(abs.(q_vap .- q_vap_rec)...)
+
         # RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
         T_rec_qpt_rec = air_temperature_from_virtual_temperature.(
             Ref(param_set),
