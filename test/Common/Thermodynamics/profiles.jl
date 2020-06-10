@@ -54,7 +54,6 @@ struct ProfileSet{FT}
     q_ice::Array{FT}                    # Ice specific humidity
     q_pt::Array{PhasePartition{FT}}     # Phase partition
     RH::Array{FT}                       # Relative humidity
-    SS::Array{FT}                       # Super saturation
     phase_type::Type{<:ThermodynamicState}
 end
 
@@ -65,7 +64,7 @@ end
         n_RS1=10,
         n_RS2=20,
         T_min=FT(150),
-        T_surface=FT(350)
+        T_surface=FT(340)
     ) where {FT}
 
 Return input arguments to construct profiles
@@ -75,7 +74,7 @@ function input_config(
     n = 50,
     n_RS1 = 10,
     n_RS2 = 20,
-    T_surface = FT(350),
+    T_surface = FT(340),
     T_min = FT(150),
 )
     n_RS = n_RS1 + n_RS2
@@ -165,10 +164,6 @@ function PhaseDryProfiles(
     q_ice = getproperty.(q_pt, :ice)
     RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
 
-    # TODO: Update this once a super saturation method exists
-    # SS = super_saturation.(Ref(param_set), T, p, e_int, Ref(phase_type), q_pt)
-    SS = zeros(FT, length(RH))
-
     return ProfileSet(
         z,
         T,
@@ -182,7 +177,6 @@ function PhaseDryProfiles(
         q_ice,
         q_pt,
         RH,
-        SS,
         phase_type
     )
 end
@@ -217,25 +211,20 @@ function PhaseEquilProfiles(
     q_liq = max.(Ref(0), RS .- 1) .* q_tot .* liq_frac
     q_ice = max.(Ref(0), RS .- 1) .* q_tot .* (1 .- liq_frac)
 
+    # Compute density consistent with preliminary phase partition
     q_pt = PhasePartition.(q_tot, q_liq, q_ice)
     R_m = gas_constant_air.(Ref(param_set), q_pt)
     ρ = p ./ (R_m .* T)
 
-    # Recompute phase partition given the density to get
-    # an accurate partition of condensed phases.
-    q_sat = q_vap_saturation.(Ref(param_set), T, ρ, Ref(phase_type))
-    q_tot = min.(RS .* q_sat, FT(1))
+    # Update phase partitioning and pressure
     q_pt = PhasePartition_equil.(Ref(param_set), T, ρ, q_tot, Ref(phase_type))
+    q_liq = getproperty.(q_pt, :liq)
+    q_ice = getproperty.(q_pt, :ice)
+    p = air_pressure.(Ref(param_set), T, ρ, q_pt)
 
     e_int = internal_energy.(Ref(param_set), T, q_pt)
     θ_liq_ice = liquid_ice_pottemp.(Ref(param_set), T, ρ, q_pt)
-    q_liq = getproperty.(q_pt, :liq)
-    q_ice = getproperty.(q_pt, :ice)
     RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
-
-    # TODO: Update this once a super saturation method exists
-    # SS = super_saturation.(Ref(param_set), T, p, e_int, Ref(phase_type), q_pt)
-    SS = zeros(FT, length(RH))
 
     return ProfileSet(
         z,
@@ -250,7 +239,6 @@ function PhaseEquilProfiles(
         q_ice,
         q_pt,
         RH,
-        SS,
         phase_type
     )
 end

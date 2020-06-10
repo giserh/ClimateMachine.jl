@@ -68,6 +68,8 @@ function atmos_init_aux!(
     FT = eltype(aux)
     _R_d::FT = R_d(atmos.param_set)
 
+    # Replace density by computation from pressure
+    # ρ = -1/g*dpdz
     ρ = p / (_R_d * T_virt)
     aux.ref_state.ρ = ρ
     aux.ref_state.p = p
