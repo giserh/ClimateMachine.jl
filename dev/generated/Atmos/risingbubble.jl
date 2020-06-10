@@ -11,8 +11,6 @@ using ClimateMachine.GenericCallbacks
 
 using ClimateMachine.ODESolvers
 
-using ClimateMachine.Mesh.Filters
-
 using ClimateMachine.TemperatureProfiles
 
 using ClimateMachine.Thermodynamics
@@ -171,15 +169,10 @@ function main()
     )
     dgn_config = config_diagnostics(driver_config)
 
-    cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
-        Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
-        nothing
-    end
-
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
-        user_callbacks = (cbtmarfilter,),
+        user_callbacks = (),
         check_euclidean_distance = true,
     )
 
