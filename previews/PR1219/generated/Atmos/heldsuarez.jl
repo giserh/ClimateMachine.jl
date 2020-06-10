@@ -171,7 +171,7 @@ cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         solver_config.dg.grid,
         filter,
         state_auxiliary = solver_config.dg.state_auxiliary,
-    );
+    )
 end;
 
 interval = "1000steps";
