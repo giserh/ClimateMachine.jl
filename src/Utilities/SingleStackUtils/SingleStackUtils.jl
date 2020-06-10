@@ -138,8 +138,8 @@ function get_horizontal_mean(
     exclude::Vector{String} = String[],
 ) where {T, dim, N}
     Nq = N + 1
-    vars_avg = Dict()
-    vars_sq = Dict()
+    vars_avg = OrderedDict()
+    vars_sq = OrderedDict()
     for i in 1:Nq
         for j in 1:Nq
             vars_nodal = get_vars_from_nodal_stack(
@@ -185,8 +185,8 @@ function get_horizontal_variance(
     exclude::Vector{String} = String[],
 ) where {T, dim, N}
     Nq = N + 1
-    vars_avg = Dict()
-    vars_sq = Dict()
+    vars_avg = OrderedDict()
+    vars_sq = OrderedDict()
     for i in 1:Nq
         for j in 1:Nq
             vars_nodal = get_vars_from_nodal_stack(
@@ -198,7 +198,7 @@ function get_horizontal_variance(
                 j = j,
                 exclude = exclude,
             )
-            vars_nodal_sq = Dict(vars_nodal)
+            vars_nodal_sq = OrderedDict(vars_nodal)
             map!(x -> x .^ 2, values(vars_nodal_sq))
             vars_avg = merge(+, vars_avg, vars_nodal)
             vars_sq = merge(+, vars_sq, vars_nodal_sq)
