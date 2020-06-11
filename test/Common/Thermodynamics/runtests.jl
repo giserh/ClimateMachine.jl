@@ -16,7 +16,7 @@ const param_set = EarthParameterSet()
 # Tolerances for tested quantities:
 atol_temperature = 5e-1
 atol_pressure = MSLP(param_set) * 2e-2
-atol_energy = cv_d(param_set)*atol_temperature
+atol_energy = cv_d(param_set) * atol_temperature
 rtol_temperature = 1e-1
 rtol_density = rtol_temperature
 rtol_pressure = 1e-1
@@ -59,11 +59,14 @@ include("data_tests.jl")
         @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
 
         # Test state for thermodynamic consistency (with ideal gas law)
-        @test all(T .≈ air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt))
+        @test all(
+            T .≈
+            air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt),
+        )
 
         Φ = FT(1)
         Random.seed!(15)
-        perturbation = FT(0.1) * rand(FT,length(T))
+        perturbation = FT(0.1) * rand(FT, length(T))
 
         # TODO: Use reasonable values for ambient temperature/pressure
         T∞, p∞ = T .* perturbation, p .* perturbation
@@ -579,7 +582,6 @@ end
     # Make sure `ThermodynamicState` arguments are returned unchanged
 
     for FT in float_types
-
         _MSLP = FT(MSLP(param_set))
 
         profiles = PhaseDryProfiles(param_set, FT)
@@ -682,7 +684,11 @@ end
         e_int_ = internal_energy.(Ref(param_set), T_non_linear, q_pt)
         ts = PhaseNonEquil.(Ref(param_set), e_int_, ρ, q_pt)
         @test all(T_non_linear .≈ air_temperature.(ts))
-        @test all(isapprox(θ_liq_ice, liquid_ice_pottemp.(ts), rtol = rtol_temperature))
+        @test all(isapprox(
+            θ_liq_ice,
+            liquid_ice_pottemp.(ts),
+            rtol = rtol_temperature,
+        ))
 
         # LiquidIcePotTempSHumEquil
         ts =
@@ -694,7 +700,11 @@ end
                 45,
                 FT(1e-3),
             )
-        @test all(isapprox.(liquid_ice_pottemp.(ts), θ_liq_ice, rtol = rtol_temperature))
+        @test all(isapprox.(
+            liquid_ice_pottemp.(ts),
+            θ_liq_ice,
+            rtol = rtol_temperature,
+        ))
         @test all(isapprox.(air_density.(ts), ρ, rtol = rtol_density))
         @test all(getproperty.(PhasePartition.(ts), :tot) .≈ q_tot)
 
@@ -713,7 +723,11 @@ end
                 35,
                 FT(1e-3),
             )
-        @test all(isapprox.(liquid_ice_pottemp.(ts), θ_liq_ice, rtol = rtol_temperature))
+        @test all(isapprox.(
+            liquid_ice_pottemp.(ts),
+            θ_liq_ice,
+            rtol = rtol_temperature,
+        ))
         @test all(
             getproperty.(PhasePartition.(ts), :tot) .≈ getproperty.(q_pt, :tot),
         )
@@ -749,7 +763,11 @@ end
                 5,
                 FT(1e-3),
             )
-        @test all(isapprox.(θ_liq_ice, liquid_ice_pottemp.(ts), rtol = rtol_temperature))
+        @test all(isapprox.(
+            θ_liq_ice,
+            liquid_ice_pottemp.(ts),
+            rtol = rtol_temperature,
+        ))
         @test all(air_density.(ts) .≈ ρ)
         @test all(
             getproperty.(PhasePartition.(ts), :tot) .≈ getproperty.(q_pt, :tot),
@@ -780,13 +798,27 @@ end
         ρ_rec = air_density.(Ref(param_set), T, p_sat, q_pt_sat)
         @test all.(ρ_rec ≈ ρ)
 
-        RH_sat = relative_humidity.(Ref(param_set), T, p_sat, Ref(phase_type), q_pt_sat)
+        RH_sat =
+            relative_humidity.(
+                Ref(param_set),
+                T,
+                p_sat,
+                Ref(phase_type),
+                q_pt_sat,
+            )
         @test all(RH_sat .≈ 1)
 
         # Test that RH is zero for dry conditions
         q_pt_dry = PhasePartition.(zeros(FT, length(T)))
         p_dry = air_pressure.(Ref(param_set), T, ρ, q_pt_dry)
-        RH_dry = relative_humidity.(Ref(param_set), T, p_dry, Ref(phase_type), q_pt_dry)
+        RH_dry =
+            relative_humidity.(
+                Ref(param_set),
+                T,
+                p_dry,
+                Ref(phase_type),
+                q_pt_dry,
+            )
         @test all(RH_dry .≈ 0)
 
 
@@ -795,18 +827,24 @@ end
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)
 
-        T_rec_qpt_rec = temperature_and_humidity_from_virtual_temperature.(
-            Ref(param_set),
-            T_virt,
-            ρ,
-            RH,
-            Ref(phase_type))
+        T_rec_qpt_rec =
+            temperature_and_humidity_from_virtual_temperature.(
+                Ref(param_set),
+                T_virt,
+                ρ,
+                RH,
+                Ref(phase_type),
+            )
 
         T_rec = first.(T_rec_qpt_rec)
         q_pt_rec = last.(T_rec_qpt_rec)
 
         # Test convergence of virtual temperature iterations
-        @test all(isapprox.(T_virt, virtual_temperature.(Ref(param_set), T_rec, ρ, q_pt_rec), atol = sqrt(eps(FT))))
+        @test all(isapprox.(
+            T_virt,
+            virtual_temperature.(Ref(param_set), T_rec, ρ, q_pt_rec),
+            atol = sqrt(eps(FT)),
+        ))
 
         # Test that reconstructed specific humidity is close
         # to original specific humidity
@@ -816,7 +854,8 @@ end
 
         # Update temperature to be exactly consistent with
         # p, ρ, q_pt_rec; test that this is equal to T_rec
-        T_local = air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt_rec)
+        T_local =
+            air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt_rec)
         @test all(isapprox.(T_local, T_rec, atol = sqrt(eps(FT))))
     end
 

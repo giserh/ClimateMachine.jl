@@ -177,7 +177,7 @@ function PhaseDryProfiles(
         q_ice,
         q_pt,
         RH,
-        phase_type
+        phase_type,
     )
 end
 
@@ -234,6 +234,6 @@ function PhaseEquilProfiles(
         q_ice,
         q_pt,
         RH,
-        phase_type
+        phase_type,
     )
 end

@@ -313,7 +313,7 @@ function air_temperature_from_ideal_gas_law(
     q::PhasePartition{FT} = q_pt_0(FT),
 ) where {FT <: Real}
     R_m = gas_constant_air(param_set, q)
-    return p/(R_m * ρ)
+    return p / (R_m * ρ)
 end
 
 """
@@ -693,8 +693,8 @@ function saturation_vapor_pressure(
     _cp_l = FT(cp_l(param_set))
     _cp_i = FT(cp_i(param_set))
     liq_frac = liquid_fraction(param_set, T, phase_type, PhasePartition(FT(0)))
-    _LH_0 = liq_frac * _LH_v0 + (1-liq_frac) * _LH_s0
-    _Δcp = _cp_v - liq_frac * _cp_l - (1-liq_frac) * _cp_i
+    _LH_0 = liq_frac * _LH_v0 + (1 - liq_frac) * _LH_s0
+    _Δcp = _cp_v - liq_frac * _cp_l - (1 - liq_frac) * _cp_i
     return saturation_vapor_pressure(param_set, T, _LH_0, _Δcp)
 end
 
@@ -1067,7 +1067,21 @@ function saturation_adjustment(
         )
         if !sol.converged
             @print("maxiter reached in saturation_adjustment:\n")
-            @print("    e_int=",e_int, ", ρ=",ρ, ", q_tot=",q_tot, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+            @print(
+                "    e_int=",
+                e_int,
+                ", ρ=",
+                ρ,
+                ", q_tot=",
+                q_tot,
+                ", T = ",
+                sol.root,
+                ", maxiter=",
+                maxiter,
+                ", tol=",
+                tol,
+                "\n"
+            )
         end
         return sol.root
     end
@@ -1152,7 +1166,21 @@ function saturation_adjustment_SecantMethod(
         )
         if !sol.converged
             @print("maxiter reached in saturation_adjustment_SecantMethod:\n")
-            @print("    e_int=",e_int, ", ρ=",ρ, ", q_tot=",q_tot, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+            @print(
+                "    e_int=",
+                e_int,
+                ", ρ=",
+                ρ,
+                ", q_tot=",
+                q_tot,
+                ", T = ",
+                sol.root,
+                ", maxiter=",
+                maxiter,
+                ", tol=",
+                tol,
+                "\n"
+            )
         end
         return sol.root
     end
@@ -1221,7 +1249,21 @@ function saturation_adjustment_q_tot_θ_liq_ice(
         )
         if !sol.converged
             @print("maxiter reached in saturation_adjustment_q_tot_θ_liq_ice:\n")
-            @print("    θ_liq_ice=",θ_liq_ice, ", ρ=",ρ, ", q_tot=",q_tot, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+            @print(
+                "    θ_liq_ice=",
+                θ_liq_ice,
+                ", ρ=",
+                ρ,
+                ", q_tot=",
+                q_tot,
+                ", T = ",
+                sol.root,
+                ", maxiter=",
+                maxiter,
+                ", tol=",
+                tol,
+                "\n"
+            )
         end
         return sol.root
     end
@@ -1293,7 +1335,21 @@ function saturation_adjustment_q_tot_θ_liq_ice_given_pressure(
         )
         if !sol.converged
             @print("maxiter reached in saturation_adjustment_q_tot_θ_liq_ice_given_pressure:\n")
-            @print("    θ_liq_ice=",θ_liq_ice, ", p=",p, ", q_tot=",q_tot, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+            @print(
+                "    θ_liq_ice=",
+                θ_liq_ice,
+                ", p=",
+                p,
+                ", q_tot=",
+                q_tot,
+                ", T = ",
+                sol.root,
+                ", maxiter=",
+                maxiter,
+                ", tol=",
+                tol,
+                "\n"
+            )
         end
         return sol.root
     end
@@ -1446,19 +1502,20 @@ function temperature_and_humidity_from_virtual_temperature(
     ρ::FT,
     RH::FT,
     phase_type::Type{<:ThermodynamicState},
-    tol::AbstractTolerance=ResidualTolerance{FT}(sqrt(eps(FT))),
-    maxiter::Int=100
+    tol::AbstractTolerance = ResidualTolerance{FT}(sqrt(eps(FT))),
+    maxiter::Int = 100,
 ) where {FT <: Real}
 
     _T_min::FT = T_min(param_set)
     _T_max = T_virt
     function virt_temp_from_RH(param_set, T, ρ, RH)
-        q_tot = RH*q_vap_saturation(param_set, T, ρ, phase_type)
+        q_tot = RH * q_vap_saturation(param_set, T, ρ, phase_type)
         q_pt = PhasePartition_equil(param_set, T, ρ, q_tot, phase_type)
         return virtual_temperature(param_set, T, ρ, q_pt)
     end
 
-    sol = find_zero(T -> T_virt - virt_temp_from_RH(param_set, T, ρ, RH),
+    sol = find_zero(
+        T -> T_virt - virt_temp_from_RH(param_set, T, ρ, RH),
         SecantMethod(_T_min, T_virt),
         CompactSolution(),
         tol,
@@ -1466,13 +1523,27 @@ function temperature_and_humidity_from_virtual_temperature(
     )
     if !sol.converged
         @print("maxiter reached in temperature_and_humidity_from_virtual_temperature:\n")
-        @print("    T_virt=",T_virt, ", RH=",RH, ", ρ=",ρ, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+        @print(
+            "    T_virt=",
+            T_virt,
+            ", RH=",
+            RH,
+            ", ρ=",
+            ρ,
+            ", T = ",
+            sol.root,
+            ", maxiter=",
+            maxiter,
+            ", tol=",
+            tol,
+            "\n"
+        )
     end
     T = sol.root
 
     # Re-compute specific humidity and phase partitioning
     # given the temperature
-    q_tot = RH*q_vap_saturation(param_set, T, ρ, phase_type)
+    q_tot = RH * q_vap_saturation(param_set, T, ρ, phase_type)
     q_pt = PhasePartition_equil(param_set, T, ρ, q_tot, phase_type)
     return (T, q_pt)
 
@@ -1549,7 +1620,25 @@ function air_temperature_from_liquid_ice_pottemp_non_linear(
     )
     if !sol.converged
         @print("maxiter reached in air_temperature_from_liquid_ice_pottemp_non_linear:\n")
-        @print("    θ_liq_ice=",θ_liq_ice, ", ρ=",ρ, ", q.tot=",q.tot, "q.liq = ", q.liq, "q.ice = ", q.ice, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
+        @print(
+            "    θ_liq_ice=",
+            θ_liq_ice,
+            ", ρ=",
+            ρ,
+            ", q.tot=",
+            q.tot,
+            "q.liq = ",
+            q.liq,
+            "q.ice = ",
+            q.ice,
+            ", T = ",
+            sol.root,
+            ", maxiter=",
+            maxiter,
+            ", tol=",
+            tol,
+            "\n"
+        )
     end
     return sol.root
 end
