@@ -9,10 +9,12 @@ using ClimateMachine.GenericCallbacks
 using ClimateMachine.Mesh.Grids
 using ClimateMachine.Mesh.Filters
 using ClimateMachine.TemperatureProfiles
+using ClimateMachine.SystemSolvers
+using ClimateMachine.ODESolvers
 using ClimateMachine.Thermodynamics
 using ClimateMachine.VariableTemplates</code></pre><p><a href="https://github.com/CliMA/CLIMAParameters.jl">ClimateMachine parameters</a> are needed to have access to Earth&#39;s physical parameters.</p><pre><code class="language-julia">using CLIMAParameters
 using CLIMAParameters.Planet: R_d, day, grav, cp_d, cv_d, planet_radius</code></pre><p>We need to load the physical parameters for Earth to have an Earth-like simulation :).</p><pre><code class="language-julia">struct EarthParameterSet &lt;: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()</code></pre><p>Construct the Held-Suarez forcing function. We can view this as part the right-hand-side of our governing equations. It forces the total energy field in a way that the resulting steady-state velocity and temperature fields of the simulation resemble those of an idealized dry planet.</p><pre><code class="language-julia">function held_suarez_forcing!(
+const param_set = EarthParameterSet();</code></pre><p>Construct the Held-Suarez forcing function. We can view this as part the right-hand-side of our governing equations. It forces the total energy field in a way that the resulting steady-state velocity and temperature fields of the simulation resemble those of an idealized dry planet.</p><pre><code class="language-julia">function held_suarez_forcing!(
     balance_law,
     source,
     state,
@@ -75,27 +77,24 @@ const param_set = EarthParameterSet()</code></pre><p>Construct the Held-Suarez f
     # Apply Held-Suarez forcing
     source.ρu -= k_v * projection_tangential(balance_law, aux, ρu)
     source.ρe -= k_T * ρ * _cv_d * (T - T_equil)
-    return nothing
-end</code></pre><h2 id="Set-initial-condition-1"><a class="docs-heading-anchor" href="#Set-initial-condition-1">Set initial condition</a><a class="docs-heading-anchor-permalink" href="#Set-initial-condition-1" title="Permalink"></a></h2><p>When using ClimateMachine, we need to define a function that sets the initial state of our model run. In our case, we use the reference state of the simulation (defined below) and add a little bit of noise. Note that the initial states includes a zero initial velocity field.</p><pre><code class="language-julia">function init_heldsuarez!(balance_law, state, aux, coordinates, time)
+end;</code></pre><h2 id="Set-initial-condition-1"><a class="docs-heading-anchor" href="#Set-initial-condition-1">Set initial condition</a><a class="docs-heading-anchor-permalink" href="#Set-initial-condition-1" title="Permalink"></a></h2><p>When using ClimateMachine, we need to define a function that sets the initial state of our model run. In our case, we use the reference state of the simulation (defined below) and add a little bit of noise. Note that the initial states includes a zero initial velocity field.</p><pre><code class="language-julia">function init_heldsuarez!(balance_law, state, aux, coordinates, time)
     FT = eltype(state)
 
     # Set initial state to reference state with random perturbation
-    rnd = FT(1.0 + rand(Uniform(-1e-3, 1e-3)))
+    rnd = FT(1 + rand(Uniform(-1e-3, 1e-3)))
     state.ρ = aux.ref_state.ρ
     state.ρu = SVector{3, FT}(0, 0, 0)
     state.ρe = rnd * aux.ref_state.ρe
-
-    nothing
-end</code></pre><h2 id="Initialize-ClimateMachine-1"><a class="docs-heading-anchor" href="#Initialize-ClimateMachine-1">Initialize ClimateMachine</a><a class="docs-heading-anchor-permalink" href="#Initialize-ClimateMachine-1" title="Permalink"></a></h2><p>Before we do anything further, we need to initialize ClimateMachine. Among other things, this will initialize the MPI us.</p><pre><code class="language-julia">ClimateMachine.init()</code></pre><h2 id="Setting-the-floating-type-precision-1"><a class="docs-heading-anchor" href="#Setting-the-floating-type-precision-1">Setting the floating-type precision</a><a class="docs-heading-anchor-permalink" href="#Setting-the-floating-type-precision-1" title="Permalink"></a></h2><p>ClimateMachine allows us to run a model with different floating-type precisions, with lower precision we get our results faster, and with higher precision, we may get more accurate results, depending on the questions we are after.</p><pre><code class="language-julia">FT = Float32</code></pre><h2 id="Setup-model-configuration-1"><a class="docs-heading-anchor" href="#Setup-model-configuration-1">Setup model configuration</a><a class="docs-heading-anchor-permalink" href="#Setup-model-configuration-1" title="Permalink"></a></h2><p>Now that we have defined our forcing and initialization functions, and have initialized ClimateMachine, we can set up the model.</p><h2 id="Set-up-a-reference-state-1"><a class="docs-heading-anchor" href="#Set-up-a-reference-state-1">Set up a reference state</a><a class="docs-heading-anchor-permalink" href="#Set-up-a-reference-state-1" title="Permalink"></a></h2><p>We start by setting up a reference state. This is simply a vector field that we subtract from the solutions to the governing equations to both improve numerical stability of the implicit time stepper and enable faster model spin-up. The reference state assumes hydrostatic balance and ideal gas law, with a pressure <span>$p_r(z)$</span> and density <span>$\rho_r(z)$</span> that only depend on altitude <span>$z$</span> and are in hydrostatic balance with each other.</p><p>In this example, the reference temperature field smoothly transitions from a linearly decaying profile near the surface to a constant temperature profile at the top of the domain.</p><pre><code class="language-julia">temp_profile_ref = DecayingTemperatureProfile{FT}(param_set)
-ref_state = HydrostaticState(temp_profile_ref)</code></pre><h2 id="Set-up-a-Rayleigh-sponge-layer-1"><a class="docs-heading-anchor" href="#Set-up-a-Rayleigh-sponge-layer-1">Set up a Rayleigh sponge layer</a><a class="docs-heading-anchor-permalink" href="#Set-up-a-Rayleigh-sponge-layer-1" title="Permalink"></a></h2><p>To avoid wave reflection at the top of the domain, the model applies a sponge layer that linearly damps the momentum equations.</p><pre><code class="language-julia">domain_height = FT(30e3)               ## height of the computational domain (m)
-z_sponge = FT(12e3)                    ## height at which sponge begins (m)
-α_relax = FT(1 / 60 / 15)              ## sponge relaxation rate (1/s)
-exponent = FT(2)                       ## sponge exponent for squared-sinusoid profile
-u_relax = SVector(FT(0), FT(0), FT(0)) ## relaxation velocity (m/s)
-sponge = RayleighSponge(domain_height, z_sponge, α_relax, u_relax, exponent)</code></pre><h2 id="Set-up-turbulence-models-1"><a class="docs-heading-anchor" href="#Set-up-turbulence-models-1">Set up turbulence models</a><a class="docs-heading-anchor-permalink" href="#Set-up-turbulence-models-1" title="Permalink"></a></h2><p>In order to produce a stable simulation, we need to dissipate energy and enstrophy at the smallest scales of the developed flow field. To achieve this we set up diffusive forcing functions.</p><pre><code class="language-julia">c_smag = FT(0.21)   ## Smagorinsky constant
-τ_hyper = FT(4 * 3600) ## hyperdiffusion time scale
-turbulence_model = SmagorinskyLilly(c_smag)
-hyperdiffusion_model = StandardHyperDiffusion(FT(4 * 3600))</code></pre><h2 id="Instantiate-the-model-1"><a class="docs-heading-anchor" href="#Instantiate-the-model-1">Instantiate the model</a><a class="docs-heading-anchor-permalink" href="#Instantiate-the-model-1" title="Permalink"></a></h2><p>The Held Suarez setup was designed to produce an equilibrated state that is comparable to the zonal mean of the Earth’s atmosphere.</p><pre><code class="language-">model = AtmosModel{FT}(
+end;</code></pre><h2 id="Initialize-ClimateMachine-1"><a class="docs-heading-anchor" href="#Initialize-ClimateMachine-1">Initialize ClimateMachine</a><a class="docs-heading-anchor-permalink" href="#Initialize-ClimateMachine-1" title="Permalink"></a></h2><p>Before we do anything further, we need to initialize ClimateMachine. Among other things, this will initialize the MPI us.</p><pre><code class="language-julia">ClimateMachine.init();</code></pre><h2 id="Setting-the-floating-type-precision-1"><a class="docs-heading-anchor" href="#Setting-the-floating-type-precision-1">Setting the floating-type precision</a><a class="docs-heading-anchor-permalink" href="#Setting-the-floating-type-precision-1" title="Permalink"></a></h2><p>ClimateMachine allows us to run a model with different floating-type precisions, with lower precision we get our results faster, and with higher precision, we may get more accurate results, depending on the questions we are after.</p><pre><code class="language-julia">FT = Float32;</code></pre><h2 id="Setup-model-configuration-1"><a class="docs-heading-anchor" href="#Setup-model-configuration-1">Setup model configuration</a><a class="docs-heading-anchor-permalink" href="#Setup-model-configuration-1" title="Permalink"></a></h2><p>Now that we have defined our forcing and initialization functions, and have initialized ClimateMachine, we can set up the model.</p><h2 id="Set-up-a-reference-state-1"><a class="docs-heading-anchor" href="#Set-up-a-reference-state-1">Set up a reference state</a><a class="docs-heading-anchor-permalink" href="#Set-up-a-reference-state-1" title="Permalink"></a></h2><p>We start by setting up a reference state. This is simply a vector field that we subtract from the solutions to the governing equations to both improve numerical stability of the implicit time stepper and enable faster model spin-up. The reference state assumes hydrostatic balance and ideal gas law, with a pressure <span>$p_r(z)$</span> and density <span>$\rho_r(z)$</span> that only depend on altitude <span>$z$</span> and are in hydrostatic balance with each other.</p><p>In this example, the reference temperature field smoothly transitions from a linearly decaying profile near the surface to a constant temperature profile at the top of the domain.</p><pre><code class="language-julia">temp_profile_ref = DecayingTemperatureProfile{FT}(param_set)
+ref_state = HydrostaticState(temp_profile_ref);</code></pre><h2 id="Set-up-a-Rayleigh-sponge-layer-1"><a class="docs-heading-anchor" href="#Set-up-a-Rayleigh-sponge-layer-1">Set up a Rayleigh sponge layer</a><a class="docs-heading-anchor-permalink" href="#Set-up-a-Rayleigh-sponge-layer-1" title="Permalink"></a></h2><p>To avoid wave reflection at the top of the domain, the model applies a sponge layer that linearly damps the momentum equations.</p><pre><code class="language-julia">domain_height = FT(30e3)               # height of the computational domain (m)
+z_sponge = FT(12e3)                    # height at which sponge begins (m)
+α_relax = FT(1 / 60 / 15)              # sponge relaxation rate (1/s)
+exponent = FT(2)                       # sponge exponent for squared-sinusoid profile
+u_relax = SVector(FT(0), FT(0), FT(0)) # relaxation velocity (m/s)
+sponge = RayleighSponge(domain_height, z_sponge, α_relax, u_relax, exponent);</code></pre><h2 id="Set-up-turbulence-models-1"><a class="docs-heading-anchor" href="#Set-up-turbulence-models-1">Set up turbulence models</a><a class="docs-heading-anchor-permalink" href="#Set-up-turbulence-models-1" title="Permalink"></a></h2><p>In order to produce a stable simulation, we need to dissipate energy and enstrophy at the smallest scales of the developed flow field. To achieve this we set up diffusive forcing functions.</p><pre><code class="language-julia">c_smag = FT(0.21);   # Smagorinsky constant
+τ_hyper = FT(4 * 3600); # hyperdiffusion time scale
+turbulence_model = SmagorinskyLilly(c_smag);
+hyperdiffusion_model = StandardHyperDiffusion(FT(4 * 3600));</code></pre><h2 id="Instantiate-the-model-1"><a class="docs-heading-anchor" href="#Instantiate-the-model-1">Instantiate the model</a><a class="docs-heading-anchor-permalink" href="#Instantiate-the-model-1" title="Permalink"></a></h2><p>The Held Suarez setup was designed to produce an equilibrated state that is comparable to the zonal mean of the Earth’s atmosphere.</p><pre><code class="language-julia">model = AtmosModel{FT}(
     AtmosGCMConfigType,
     param_set;
     ref_state = ref_state,
@@ -103,15 +102,14 @@ hyperdiffusion_model = StandardHyperDiffusion(FT(4 * 3600))</code></pre><h2 id="
     hyperdiffusion = hyperdiffusion_model,
     moisture = DryModel(),
     source = (Gravity(), Coriolis(), held_suarez_forcing!, sponge),
-    init_state = init_heldsuarez!,
-)
-nothing # hide</code></pre><p>This concludes the setup of the physical model!</p><h2 id="Set-up-the-driver-1"><a class="docs-heading-anchor" href="#Set-up-the-driver-1">Set up the driver</a><a class="docs-heading-anchor-permalink" href="#Set-up-the-driver-1" title="Permalink"></a></h2><p>We just need to set up a few parameters that define the resolution of the discontinuous Galerkin method and for how long we want to run our model setup.</p><pre><code class="language-julia">poly_order = 5                        ## discontinuous Galerkin polynomial order
-n_horz = 2                            ## horizontal element number
-n_vert = 2                            ## vertical element number
+    init_state_conservative = init_heldsuarez!,
+);</code></pre><p>This concludes the setup of the physical model!</p><h2 id="Set-up-the-driver-1"><a class="docs-heading-anchor" href="#Set-up-the-driver-1">Set up the driver</a><a class="docs-heading-anchor-permalink" href="#Set-up-the-driver-1" title="Permalink"></a></h2><p>We just need to set up a few parameters that define the resolution of the discontinuous Galerkin method and for how long we want to run our model setup.</p><pre><code class="language-julia">poly_order = 5;                        ## discontinuous Galerkin polynomial order
+n_horz = 2;                            ## horizontal element number
+n_vert = 2;                            ## vertical element number
 resolution = (n_horz, n_vert)
-n_days = 1                            ## experiment day number
-timestart = FT(0)                     ## start time (s)
-timeend = FT(n_days * day(param_set)) ## end time (s)</code></pre><p>The next lines set up the spatial grid.</p><pre><code class="language-">driver_config = ClimateMachine.AtmosGCMConfiguration(
+n_days = 0.1;                          ## experiment day number
+timestart = FT(0);                     ## start time (s)
+timeend = FT(n_days * day(param_set)); ## end time (s);</code></pre><p>The next lines set up the spatial grid.</p><pre><code class="language-julia">driver_config = ClimateMachine.AtmosGCMConfiguration(
     &quot;HeldSuarez&quot;,
     poly_order,
     resolution,
@@ -119,57 +117,87 @@ timeend = FT(n_days * day(param_set)) ## end time (s)</code></pre><p>The next li
     param_set,
     init_heldsuarez!;
     model = model,
-);
-nothing #hide</code></pre><p>The next lines set up the time stepper. Since the resolution in the vertical is much finer than in the horizontal, the &#39;stiff&#39; parts of the PDE will be in the vertical. Setting <code>splitting_type = HEVISplitting()</code> will treat vertical acoustic waves implicitly, while all other dynamics are treated explicitly.</p><pre><code class="language-">ode_solver_type = ClimateMachine.IMEXSolverType(
+);</code></pre><pre><code class="language-none">┌ Info: Model composition
+│     param_set = Main.ex-heldsuarez.EarthParameterSet()
+│     orientation = ClimateMachine.Atmos.SphericalOrientation()
+│     ref_state = ClimateMachine.Atmos.HydrostaticState{ClimateMachine.TemperatureProfiles.DecayingTemperatureProfile{Float32},Float32}(ClimateMachine.TemperatureProfiles.DecayingTemperatureProfile{Float32}(290.0f0, 220.0f0, 8484.2705f0), 0.0f0)
+│     turbulence = ClimateMachine.Atmos.SmagorinskyLilly{Float32}(0.21f0)
+│     hyperdiffusion = ClimateMachine.Atmos.StandardHyperDiffusion{Float32}(14400.0f0)
+│     moisture = ClimateMachine.Atmos.DryModel()
+│     precipitation = ClimateMachine.Atmos.NoPrecipitation()
+│     radiation = ClimateMachine.Atmos.NoRadiation()
+│     source = (ClimateMachine.Atmos.Gravity(), ClimateMachine.Atmos.Coriolis(), Main.ex-heldsuarez.held_suarez_forcing!, ClimateMachine.Atmos.RayleighSponge{Float32}(30000.0f0, 12000.0f0, 0.0011111111f0, Float32[0.0, 0.0, 0.0], 2.0f0))
+│     tracers = ClimateMachine.Atmos.NoTracers()
+│     boundarycondition = ClimateMachine.Atmos.AtmosBC{ClimateMachine.Atmos.Impenetrable{ClimateMachine.Atmos.FreeSlip},ClimateMachine.Atmos.Insulating,ClimateMachine.Atmos.Impermeable,ClimateMachine.Atmos.ImpermeableTracer}(ClimateMachine.Atmos.Impenetrable{ClimateMachine.Atmos.FreeSlip}(ClimateMachine.Atmos.FreeSlip()), ClimateMachine.Atmos.Insulating(), ClimateMachine.Atmos.Impermeable(), ClimateMachine.Atmos.ImpermeableTracer())
+│     init_state_conservative = init_heldsuarez!
+└     data_config = nothing
+┌ Info: Establishing Atmos GCM configuration for HeldSuarez
+│     precision        = Float32
+│     polynomial order = 5
+│     #horiz elems     = 2
+│     #vert elems      = 2
+│     domain height    = 3.00e+04 m
+│     MPI ranks        = 1
+│     min(Δ_horz)      = 416156.75 m
+└     min(Δ_vert)      = 1760.58 m</code></pre><p>The next lines set up the time stepper. Since the resolution in the vertical is much finer than in the horizontal, the &#39;stiff&#39; parts of the PDE will be in the vertical. Setting <code>splitting_type = HEVISplitting()</code> will treat vertical acoustic waves implicitly, while all other dynamics are treated explicitly.</p><pre><code class="language-julia">ode_solver_type = ClimateMachine.IMEXSolverType(
     splitting_type = HEVISplitting(),
     implicit_model = AtmosAcousticGravityLinearModel,
     implicit_solver = ManyColumnLU,
     solver_method = ARK2GiraldoKellyConstantinescu,
-)
+);
 
 solver_config = ClimateMachine.SolverConfiguration(
     timestart,
     timeend,
     driver_config,
-    Courant_number = FT(0.2),
+    Courant_number = FT(0.1),
     ode_solver_type = ode_solver_type,
     init_on_cpu = true,
     CFL_direction = HorizontalDirection(),
     diffdir = HorizontalDirection(),
-);
-nothing #hide</code></pre><h2 id="Set-up-spectral-exponential-filter-1"><a class="docs-heading-anchor" href="#Set-up-spectral-exponential-filter-1">Set up spectral exponential filter</a><a class="docs-heading-anchor-permalink" href="#Set-up-spectral-exponential-filter-1" title="Permalink"></a></h2><p>After every completed time step we apply a spectral filter to remove remaining small-scale noise introduced by the numerical procedures. This assures that our run remains stable.</p><pre><code class="language-">filterorder = 10
-filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+);</code></pre><pre><code class="language-none">[ Info: Initializing HeldSuarez</code></pre><h2 id="Set-up-spectral-exponential-filter-1"><a class="docs-heading-anchor" href="#Set-up-spectral-exponential-filter-1">Set up spectral exponential filter</a><a class="docs-heading-anchor-permalink" href="#Set-up-spectral-exponential-filter-1" title="Permalink"></a></h2><p>After every completed time step we apply a spectral filter to remove remaining small-scale noise introduced by the numerical procedures. This assures that our run remains stable.</p><pre><code class="language-julia">filterorder = 10;
+filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder);
 cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
     Filters.apply!(
         solver_config.Q,
         AtmosFilterPerturbations(model),
         solver_config.dg.grid,
         filter,
+        state_auxiliary = solver_config.dg.state_auxiliary,
     )
-    nothing
-end</code></pre><h2 id="Setup-diagnostic-output-1"><a class="docs-heading-anchor" href="#Setup-diagnostic-output-1">Setup diagnostic output</a><a class="docs-heading-anchor-permalink" href="#Setup-diagnostic-output-1" title="Permalink"></a></h2><p>Choose frequency and resolution of output, and a diagnostics group (dgngrp) which defines output variables. This needs to be defined in <a href="https://CliMA.github.io/ClimateMachine.jl/latest/generated/Diagnostics">diagnostics</a>.</p><pre><code class="language-">interval = &quot;1000steps&quot;
-_planet_radius = FT(planet_radius(param_set))
-info = driver_config.config_info
+end;</code></pre><h2 id="Setup-diagnostic-output-1"><a class="docs-heading-anchor" href="#Setup-diagnostic-output-1">Setup diagnostic output</a><a class="docs-heading-anchor-permalink" href="#Setup-diagnostic-output-1" title="Permalink"></a></h2><p>Choose frequency and resolution of output, and a diagnostics group (dgngrp) which defines output variables. This needs to be defined in <a href="../../../APIs/Diagnostics/Diagnostics/#ClimateMachine.Diagnostics"><code>Diagnostics</code></a>.</p><pre><code class="language-julia">interval = &quot;1000steps&quot;;
+_planet_radius = FT(planet_radius(param_set));
+info = driver_config.config_info;
 boundaries = [
     FT(-90.0) FT(-180.0) _planet_radius
     FT(90.0) FT(180.0) FT(_planet_radius + info.domain_height)
-]
-resolution = (FT(10), FT(10), FT(1000)) # in (deg, deg, m)
+];
+resolution = (FT(10), FT(10), FT(1000)); # in (deg, deg, m)
 interpol = ClimateMachine.InterpolationConfiguration(
     driver_config,
     boundaries,
     resolution,
-)
+);
 
 dgn_config = setup_dump_state_and_aux_diagnostics(
+    AtmosGCMConfigType(),
     interval,
-    driver_config.name,
+    driver_config.name;
     interpol = interpol,
-)
-nothing # hide</code></pre><h2 id="Run-the-model-1"><a class="docs-heading-anchor" href="#Run-the-model-1">Run the model</a><a class="docs-heading-anchor-permalink" href="#Run-the-model-1" title="Permalink"></a></h2><p>Finally, we can run the model using the physical setup and solvers from above. We use the spectral filter in our callbacks after every time step, and collect the diagnostics output.</p><pre><code class="language-">result = ClimateMachine.invoke!(
+);</code></pre><h2 id="Run-the-model-1"><a class="docs-heading-anchor" href="#Run-the-model-1">Run the model</a><a class="docs-heading-anchor-permalink" href="#Run-the-model-1" title="Permalink"></a></h2><p>Finally, we can run the model using the physical setup and solvers from above. We use the spectral filter in our callbacks after every time step, and collect the diagnostics output.</p><pre><code class="language-julia">result = ClimateMachine.invoke!(
     solver_config;
     diagnostics_config = dgn_config,
     user_callbacks = (cbfilter,),
     check_euclidean_distance = true,
-)
-nothing # hide</code></pre><h2 id="References-1"><a class="docs-heading-anchor" href="#References-1">References</a><a class="docs-heading-anchor-permalink" href="#References-1" title="Permalink"></a></h2><ul><li>Held, I.M. and M.J. Suarez, 1994: A Proposal for the Intercomparison</li></ul><p>the Dynamical Cores of Atmospheric General Circulation Models. Bull. # Amer. Meteor. Soc., 75, 1825–1830, https://doi.org/10.1175/1520-0477(1994)075&lt;1825:APFTIO&gt;2.0.CO;2</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../dry_rayleigh_benard/">« Dry Rayleigh Bernard</a><a class="docs-footer-nextpage" href="../risingbubble/">Rising Thermal Bubble »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 11 June 2020 00:28">Thursday 11 June 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+);</code></pre><pre><code class="language-none">┌ Info: Starting HeldSuarez
+│     dt              = 1.21690e+02
+│     timeend         =  8640.00
+│     number of steps = 71
+└     norm(Q)         = 7.7110458712064000e+13
+┌ Info: Finished
+│     norm(Q)            = 7.7119719735296000e+13
+│     norm(Q) / norm(Q₀) = 1.0001200437545776e+00
+└     norm(Q) - norm(Q₀) = 9.2610232320000000e+09
+┌ Info: Euclidean distance
+│     norm(Q - Qe)            = 1.3288867430400000e+11
+└     norm(Q - Qe) / norm(Qe) = 1.7233712133020163e-03</code></pre><h2 id="References-1"><a class="docs-heading-anchor" href="#References-1">References</a><a class="docs-heading-anchor-permalink" href="#References-1" title="Permalink"></a></h2><ul><li>Held, I.M. and M.J. Suarez, 1994: A Proposal for the Intercomparison</li></ul><p>the Dynamical Cores of Atmospheric General Circulation Models. Bull. # Amer. Meteor. Soc., 75, 1825–1830, https://doi.org/10.1175/1520-0477(1994)075&lt;1825:APFTIO&gt;2.0.CO;2</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../dry_rayleigh_benard/">« Dry Rayleigh Bernard</a><a class="docs-footer-nextpage" href="../risingbubble/">Rising Thermal Bubble »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 11 June 2020 17:32">Thursday 11 June 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
