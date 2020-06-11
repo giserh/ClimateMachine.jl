@@ -28,7 +28,7 @@ include("profiles.jl")
 include("data_tests.jl")
 
 @testset "moist thermodynamics - isentropic processes" begin
-    for FT in [Float64]
+    for FT in float_types
         _R_d = FT(R_d(param_set))
         _molmass_ratio = FT(molmass_ratio(param_set))
         _cp_d = FT(cp_d(param_set))
@@ -63,7 +63,7 @@ include("data_tests.jl")
 
         Φ = FT(1)
         Random.seed!(15)
-        perturbation = FT(0.1) * rand(length(T))
+        perturbation = FT(0.1) * rand(FT,length(T))
 
         # TODO: Use reasonable values for ambient temperature/pressure
         T∞, p∞ = T .* perturbation, p .* perturbation
@@ -578,7 +578,7 @@ end
 
     # Make sure `ThermodynamicState` arguments are returned unchanged
 
-    for FT in [Float64,]
+    for FT in float_types
 
         _MSLP = FT(MSLP(param_set))
 
@@ -808,12 +808,16 @@ end
         # Test convergence of virtual temperature iterations
         @test all(isapprox.(T_virt, virtual_temperature.(Ref(param_set), T_rec, ρ, q_pt_rec), atol = sqrt(eps(FT))))
 
-        # 
+        # Test that reconstructed specific humidity is close
+        # to original specific humidity
         q_tot_rec = getproperty.(q_pt_rec, :tot)
-        @show max(abs.(q_tot .- q_tot_rec)...)
-        # @show max(abs.(q_tot .- q_tot_rec)...)
+        RH_moist = q_tot .> eps(FT)
+        @test all(isapprox.(q_tot[RH_moist], q_tot_rec[RH_moist], rtol = 5e-2))
+
+        # Update temperature to be exactly consistent with
+        # p, ρ, q_pt_rec; test that this is equal to T_rec
         T_local = air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt_rec)
-        @test all(T_local .≈ T_rec)
+        @test all(isapprox.(T_local, T_rec, atol = sqrt(eps(FT))))
     end
 
 end
