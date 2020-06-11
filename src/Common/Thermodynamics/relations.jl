@@ -32,9 +32,9 @@ export air_temperature_from_liquid_ice_pottemp,
     air_temperature_from_liquid_ice_pottemp_given_pressure
 export air_temperature_from_liquid_ice_pottemp_non_linear
 export vapor_specific_humidity
-export q_vap_from_RH
 export virtual_temperature
 export air_temperature_from_virtual_temperature
+export air_temperature_from_ideal_gas_law
 export condensate, has_condensate
 
 """
@@ -158,34 +158,6 @@ or
 total_specific_humidity(ts::ThermodynamicState) = ts.q_tot
 total_specific_humidity(ts::PhaseDry{FT}) where {FT} = FT(0)
 total_specific_humidity(ts::PhaseNonEquil) = ts.q.tot
-
-"""
-    q_vap_from_RH(
-        param_set::AbstractParameterSet,
-        T::FT,
-        p::FT,
-        RH::FT
-        ) where {FT<:AbstractFloat}
-
-Vapor specific humidity, given
- - `param_set` an `AbstractParameterSet`, see the [`Thermodynamics`](@ref) for more details
- - `T` air temperature
- - `p` pressure
- - `RH` relative humidity
-"""
-function q_vap_from_RH(
-        param_set::AbstractParameterSet,
-        T::FT,
-        p::FT,
-        RH::FT,
-        phase_type::Type{<:ThermodynamicState}
-        ) where {FT<:AbstractFloat}
-    _R_d = FT(R_d(param_set))
-    _R_v = FT(R_v(param_set))
-    ε_vd = _R_d/_R_v
-    p_vap_sat = saturation_vapor_pressure(param_set, phase_type, T)
-    return RH*p_vap_sat*ε_vd/(p - RH*p_vap_sat*(1 - ε_vd))
-end
 
 """
     cp_m(param_set, [q::PhasePartition])
@@ -323,6 +295,26 @@ air_temperature(ts::ThermodynamicState) =
     air_temperature(ts.param_set, internal_energy(ts), PhasePartition(ts))
 air_temperature(ts::PhaseEquil) = ts.T
 
+"""
+    air_temperature_from_ideal_gas_law(param_set, p, ρ, q::PhasePartition)
+
+The air temperature, where
+
+ - `param_set` an `AbstractParameterSet`, see the [`Thermodynamics`](@ref) for more details
+ - `p` air pressure
+ - `ρ` air density
+and, optionally,
+ - `q` [`PhasePartition`](@ref). Without this argument, the results are for dry air.
+"""
+function air_temperature_from_ideal_gas_law(
+    param_set::APS,
+    p::FT,
+    ρ::FT,
+    q::PhasePartition{FT} = q_pt_0(FT),
+) where {FT <: Real}
+    R_m = gas_constant_air(param_set, q)
+    return p/(R_m * ρ)
+end
 
 """
     internal_energy(param_set, T[, q::PhasePartition])
@@ -1458,14 +1450,13 @@ function air_temperature_from_virtual_temperature(
     ρ::FT,
     RH::FT,
     phase_type::Type{<:ThermodynamicState},
-    tol::AbstractTolerance=ResidualTolerance{FT}(1e-1),
-    maxiter::Int=30,
+    tol::AbstractTolerance=ResidualTolerance{FT}(sqrt(eps(FT))),
+    maxiter::Int=100
 ) where {FT <: Real}
 
     _T_min::FT = T_min(param_set)
-    _T_max::FT = T_max(param_set)
+    _T_max = T_virt
     function virt_temp_from_RH(param_set, T, ρ, RH)
-        # q_vap = q_vap_from_RH(param_set, T, p, RH, phase_type)
         q_tot = RH*q_vap_saturation(param_set, T, ρ, phase_type)
         q_pt = PhasePartition_equil(param_set, T, ρ, q_tot, phase_type)
         return virtual_temperature(param_set, T, ρ, q_pt)
@@ -1482,6 +1473,9 @@ function air_temperature_from_virtual_temperature(
         @print("    T_virt=",T_virt, ", RH=",RH, ", ρ=",ρ, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
     end
     T = sol.root
+
+    # Re-compute specific humidity and phase partitioning
+    # given the temperature
     q_tot = RH*q_vap_saturation(param_set, T, ρ, phase_type)
     q_pt = PhasePartition_equil(param_set, T, ρ, q_tot, phase_type)
     return (T, q_pt)

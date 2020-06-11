@@ -198,6 +198,7 @@ function PhaseEquilProfiles(
 
     # Prescribe z_range, relative_sat, T_surface, T_min
     z_range, relative_sat, T_surface, T_min = input_config(FT)
+    _R_d = FT(R_d(param_set))
 
     # Compute T, p, from DecayingTemperatureProfile, (reshape RS)
     z, T, p, RS =
@@ -206,18 +207,12 @@ function PhaseEquilProfiles(
     # Compute total specific humidity from temperature, pressure
     # and relative saturation, and partition the saturation excess
     # according to temperature.
-    q_tot = q_vap_from_RH.(Ref(param_set), T, p, RS, Ref(phase_type))
-    liq_frac = liquid_fraction.(Ref(param_set), T, Ref(phase_type))
-    q_liq = max.(Ref(0), RS .- 1) .* q_tot .* liq_frac
-    q_ice = max.(Ref(0), RS .- 1) .* q_tot .* (1 .- liq_frac)
-
-    # Compute density consistent with preliminary phase partition
-    q_pt = PhasePartition.(q_tot, q_liq, q_ice)
-    R_m = gas_constant_air.(Ref(param_set), q_pt)
-    ρ = p ./ (R_m .* T)
-
-    # Update phase partitioning and pressure
+    ρ = p ./ (_R_d .* T)
+    q_tot = RS .* q_vap_saturation.(Ref(param_set), T, ρ, Ref(phase_type))
     q_pt = PhasePartition_equil.(Ref(param_set), T, ρ, q_tot, Ref(phase_type))
+
+    # Extract phase partitioning and update pressure
+    # to be thermodynamically consistent with T, ρ, q_pt
     q_liq = getproperty.(q_pt, :liq)
     q_ice = getproperty.(q_pt, :ice)
     p = air_pressure.(Ref(param_set), T, ρ, q_pt)

@@ -57,6 +57,10 @@ include("data_tests.jl")
         # for FT in float_types
         profiles = PhaseEquilProfiles(param_set, FT)
         @unpack_fields profiles T p RS e_int ρ θ_liq_ice q_tot q_liq q_ice q_pt RH phase_type
+
+        # Test state for thermodynamic consistency (with ideal gas law)
+        @test all(T .≈ air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt))
+
         Φ = FT(1)
         Random.seed!(15)
         perturbation = FT(0.1) * rand(length(T))
@@ -791,31 +795,25 @@ end
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)
 
-        # # Test q_vap_from_RH-relative_humidity consistency
-        # RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
-        # q_vap_rec = q_vap_from_RH.(Ref(param_set), T, p, RH, Ref(phase_type))
-        # q_vap = q_vap_saturation.(Ref(param_set), T, ρ, Ref(phase_type))
-        # @test all(q_vap .≈ q_vap_rec)
-        # @show max(abs.(q_vap .- q_vap_rec)...)
-
-        # RH = relative_humidity.(Ref(param_set), T, p, Ref(phase_type), q_pt)
         T_rec_qpt_rec = air_temperature_from_virtual_temperature.(
             Ref(param_set),
             T_virt,
             ρ,
             RH,
-            Ref(phase_type),
-            ResidualTolerance{FT}(1e-3),
-            100)
+            Ref(phase_type))
 
         T_rec = first.(T_rec_qpt_rec)
         q_pt_rec = last.(T_rec_qpt_rec)
-        @test all(T_virt .≈ virtual_temperature.(Ref(param_set), T_rec, ρ, q_pt_rec))
-        RH_mask = RH .<= 1
-        # @show max(abs.(T - T_rec)...)
-        @test all(T .≈ T_rec)
-        @show max(abs.(T - T_rec)...)
-        @show max(abs.(T[RH_mask] - T_rec[RH_mask])...)
+
+        # Test convergence of virtual temperature iterations
+        @test all(isapprox.(T_virt, virtual_temperature.(Ref(param_set), T_rec, ρ, q_pt_rec), atol = sqrt(eps(FT))))
+
+        # 
+        q_tot_rec = getproperty.(q_pt_rec, :tot)
+        @show max(abs.(q_tot .- q_tot_rec)...)
+        # @show max(abs.(q_tot .- q_tot_rec)...)
+        T_local = air_temperature_from_ideal_gas_law.(Ref(param_set), p, ρ, q_pt_rec)
+        @test all(T_local .≈ T_rec)
     end
 
 end
