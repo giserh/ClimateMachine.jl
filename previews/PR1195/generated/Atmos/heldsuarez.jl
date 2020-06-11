@@ -188,7 +188,7 @@ interpol = ClimateMachine.InterpolationConfiguration(
     resolution,
 );
 
-dgn_config = [
+dgngrps = [
     setup_dump_state_diagnostics(
         AtmosGCMConfigType(),
         interval,
@@ -202,6 +202,7 @@ dgn_config = [
         interpol = interpol,
     ),
 ];
+dgn_config = ClimateMachine.DiagnosticsConfiguration(dgngrps);
 
 result = ClimateMachine.invoke!(
     solver_config;
