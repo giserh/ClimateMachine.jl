@@ -155,8 +155,8 @@ function main()
     FT = Float64
 
     N = 4
-    Δh = FT(1000)
-    Δv = FT(240)
+    Δh = FT(1200)
+    Δv = FT(300)
     resolution = (Δh, Δh, Δv)
     xmax = FT(244000)
     ymax = FT(4000)
@@ -166,7 +166,7 @@ function main()
 
     #Define the max Courant for the time time integrator (ode_solver).
     #The default value is 1.7 for LSRK144:
-    Courant = FT(0.5)
+    Courant = FT(1.5)
 
     driver_config = config_agnesi_hs_lin(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(

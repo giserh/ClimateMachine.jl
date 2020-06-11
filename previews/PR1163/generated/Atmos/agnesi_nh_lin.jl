@@ -156,8 +156,8 @@ function main()
 
     #Define the polynomial order and effeftive grid spacings:
     N = 4
-    Δh = FT(340)
-    Δv = FT(200)
+    Δh = FT(500)
+    Δv = FT(240)
     resolution = (Δh, Δh, Δv)
 
     #Define the domain size in all 3 directions
@@ -165,7 +165,7 @@ function main()
     ymax = FT(4000)
     zmax = FT(30000)
     t0 = FT(0)
-    timeend = FT(18000)
+    timeend = FT(10000)
 
     #Define the max Courant for the time time integrator (ode_solver).
     #The default value is 1.7 for LSRK144:
