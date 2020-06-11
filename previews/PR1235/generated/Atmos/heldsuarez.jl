@@ -96,7 +96,7 @@ function init_heldsuarez!(balance_law, state, aux, coordinates, time)
     state.ρe = rnd * aux.ref_state.ρe
 end;
 
-ClimateMachine.cli();
+ClimateMachine.init();
 
 FT = Float32;
 

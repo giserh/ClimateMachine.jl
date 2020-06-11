@@ -6,7 +6,7 @@ using DocStringExtensions
 using Printf
 
 using ClimateMachine
-ClimateMachine.cli()
+ClimateMachine.init()
 using ClimateMachine.Atmos
 using ClimateMachine.ConfigTypes
 using ClimateMachine.DGMethods.NumericalFluxes

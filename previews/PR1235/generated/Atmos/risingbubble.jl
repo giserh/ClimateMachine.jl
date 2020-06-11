@@ -1,5 +1,5 @@
 using ClimateMachine
-ClimateMachine.cli()
+ClimateMachine.init()
 
 using ClimateMachine.Atmos
 

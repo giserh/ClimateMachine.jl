@@ -1,7 +1,7 @@
 using MPI
 using Test
 using ClimateMachine
-ClimateMachine.cli()
+ClimateMachine.init()
 using Logging
 using ClimateMachine.Mesh.Topologies
 using ClimateMachine.Mesh.Grids
