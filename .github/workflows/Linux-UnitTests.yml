@@ -1,11 +1,6 @@
-name: Linux Unit Tests
+name: Unit Tests
 
-on:
-  push:
-    branches-ignore:
-      - master
-      - staging
-      - trying
+on: [pull_request]
 
 jobs:
   test:
