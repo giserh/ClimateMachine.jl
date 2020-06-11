@@ -9,7 +9,7 @@ on:
 jobs:
   test-os:
     runs-on: ${{ matrix.os }}
-    maxtrix:
+    matrix:
       os: [ubuntu-latest, windows-latest, macos-latest]
     strategy:
       fail-fast: true
