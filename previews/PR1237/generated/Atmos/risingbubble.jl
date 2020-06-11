@@ -11,9 +11,11 @@ using ClimateMachine.GenericCallbacks
 
 using ClimateMachine.ODESolvers
 
+using ClimateMachine.Mesh.Filters
+
 using ClimateMachine.TemperatureProfiles
 
-using ClimateMachine.Thermodynamics
+using ClimateMachine.MoistThermodynamics
 
 using ClimateMachine.VariableTemplates
 
@@ -38,18 +40,17 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     _grav::FT = grav(bl.param_set)
     γ::FT = c_p / c_v
 
-    xc::FT = 5000
-    yc::FT = 1000
-    zc::FT = 2000
-    r = sqrt((x - xc)^2 + (z - zc)^2)
-    rc::FT = 2000
-    θamplitude::FT = 2
+    xc::FT = 1250
+    yc::FT = 1250
+    zc::FT = 1000
+    r = sqrt((x - xc)^2 + (y - yc)^2 + (z - zc)^2)
+    rc::FT = 500
 
     θ_ref::FT = bl.ref_state.virtual_temperature_profile.T_surface
-
     Δθ::FT = 0
+
     if r <= rc
-        Δθ = θamplitude * (1.0 - r / rc)
+        Δθ = FT(5) * cospi(r / rc / 2)
     end
 
     θ = θ_ref + Δθ                                      # potential temperature
@@ -82,52 +83,29 @@ end
 
 function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
 
-    # Choose an Explicit Single-rate Solver from the existing [ODESolvers](@ref
-    # ODESolvers-docs) options. Apply the outer constructor to define the
-    # `ode_solver`.
-    # The 1D-IMEX method is less appropriate for the problem given the current
-    # mesh aspect ratio (1:1).
-    ode_solver = ClimateMachine.ExplicitSolverType(
-        solver_method = LSRK144NiegemannDiehlBusch,
+    ode_solver = ClimateMachine.MultirateSolverType(
+        linear_model = AtmosAcousticGravityLinearModel,
+        slow_method = LSRK144NiegemannDiehlBusch,
+        fast_method = LSRK144NiegemannDiehlBusch,
+        timestep_ratio = 10,
     )
-    # If the user prefers a multi-rate explicit time integrator,
-    # the ode_solver above can be replaced with
-    #
-    # `ode_solver = ClimateMachine.MultirateSolverType(
-    #    fast_model = AtmosAcousticGravityLinearModel,
-    #    slow_method = LSRK144NiegemannDiehlBusch,
-    #    fast_method = LSRK144NiegemannDiehlBusch,
-    #    timestep_ratio = 10,
-    # )`
-    ##See ODESolvers for all of the available solvers.
 
-
-    # Since we want four tracers, we specify this and include the appropriate
-    # diffusivity scaling coefficients (normally these would be physically
-    # informed but for this demonstration we use integers corresponding to the
-    # tracer index identifier)
     ntracers = 4
     δ_χ = SVector{ntracers, FT}(1, 2, 3, 4)
-    # To assemble `AtmosModel` with no tracers, set `tracers = NoTracers()`.
 
-    # The model coefficient for the turbulence closure is defined via the
-    # [CLIMAParameters
-    # package](https://CliMA.github.io/CLIMAParameters.jl/latest/) A reference
-    # state for the linearisation step is also defined.
     T_surface = FT(300)
     T_min_ref = FT(0)
     T_profile = DryAdiabaticProfile{FT}(param_set, T_surface, T_min_ref)
     ref_state = HydrostaticState(T_profile)
 
-    # The fun part! Here we assemble the `AtmosModel`.
-    ##md # !!! note
-    ##md #     Docs on model subcomponent options can be found here:
-    ##md #     - [`param_set`](https://CliMA.github.io/CLIMAParameters.jl/latest/)
-    ##md #     - `turbulence`
-    ##md #     - `hyperdiffusion`
-    ##md #     - `source`
-    ##md #     - `tracers`
-    ##md #     - `init_state`
+    #md # !!! note
+    #md #     Docs on model subcomponent options can be found here:
+    #md #     - [`param_set`](https://CliMA.github.io/CLIMAParameters.jl/latest/)
+    #md #     - `turbulence`
+    #md #     - `hyperdiffusion`
+    #md #     - `source`
+    #md #     - `tracers`
+    #md #     - `init_state`
 
     _C_smag = FT(C_smag(param_set))
     model = AtmosModel{FT}(
@@ -142,8 +120,6 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
         init_state_conservative = init_risingbubble!, # Apply the initial condition
     )
 
-    # Finally, we pass a `Problem Name` string, the mesh information, and the
-    # model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
         "DryRisingBubble",       # Problem title [String]
         N,                       # Polynomial order [Int]
@@ -161,44 +137,25 @@ end
 
 function config_diagnostics(driver_config)
     interval = "10000steps"
-    dgngrp = setup_atmos_default_diagnostics(
-        AtmosLESConfigType(),
-        interval,
-        driver_config.name,
-    )
+    dgngrp = setup_atmos_default_diagnostics(interval, driver_config.name)
     return ClimateMachine.DiagnosticsConfiguration([dgngrp])
 end
 
 function main()
-    # These are essentially arguments passed to the
-    # `config_risingbubble` function.  For type
-    # consistency we explicitly define the problem floating-precision.
+
     FT = Float64
-    # We need to specify the polynomial order for the DG discretization,
-    # effective resolution, simulation end-time, the domain bounds, and the
-    # courant-number for the time-integrator. Note how the time-integration
-    # components `solver_config` are distinct from the spatial / model
-    # components in `driver_config`. `init_on_cpu` is a helper keyword argument
-    # that forces problem initialisation on CPU (thereby allowing the use of
-    # random seeds, spline interpolants and other special functions at the
-    # initialisation step.)
+
     N = 4
-    Δh = FT(125)
-    Δv = FT(125)
+    Δh = FT(50)
+    Δv = FT(50)
     resolution = (Δh, Δh, Δv)
-    xmax = FT(10000)
-    ymax = FT(500)
-    zmax = FT(10000)
+    xmax = FT(2500)
+    ymax = FT(2500)
+    zmax = FT(2500)
     t0 = FT(0)
     timeend = FT(1000)
+    CFL = FT(20)
 
-    # Use up to 20 if ode_solver is the multi-rate LRRK144.
-    # CFL = FT(15)
-
-    # Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(1.7)
-
-    # Assign configurations so they can be passed to the `invoke!` function
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
@@ -209,16 +166,18 @@ function main()
     )
     dgn_config = config_diagnostics(driver_config)
 
-    # Invoke solver (calls `solve!` function for time-integrator), pass the driver, solver and diagnostic config
-    # information.
+    cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
+        Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
+        nothing
+    end
+
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
-        user_callbacks = (),
+        user_callbacks = (cbtmarfilter,),
         check_euclidean_distance = true,
     )
 
-    # Check that the solution norm is reasonable.
     @test isapprox(result, FT(1); atol = 1.5e-3)
 end
 
