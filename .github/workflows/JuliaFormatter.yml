@@ -1,6 +1,13 @@
 name: JuliaFormatter
 
-on: [pull_request]
+on:
+  push:
+    branches:
+      - master
+      - trying
+      - staging
+    tags: '*'
+  pull_request:
 
 jobs:
   format:
@@ -12,7 +19,7 @@ jobs:
     - run: git fetch origin
     - uses: julia-actions/setup-julia@latest
       with:
-        version: 1.3
+        version: 1.4
     - name: Apply JuliaFormatter
       run: |
         julia --project=.dev .dev/climaformat.jl .
