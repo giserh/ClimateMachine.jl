@@ -39,20 +39,54 @@ const param_set = EarthParameterSet()</code></pre><pre><code class="language-non
     state.ρu = ρu
     state.ρe = ρe_tot
     state.tracers.ρχ = ρχ
-end</code></pre><h2 id="config-helper-1"><a class="docs-heading-anchor" href="#config-helper-1">Model Configuration</a><a class="docs-heading-anchor-permalink" href="#config-helper-1" title="Permalink"></a></h2><p>We define a configuration function to assist in prescribing the physical model. The purpose of this is to populate the <a href="generated/Atmos/@ref LESConfig"><code>ClimateMachine.AtmosLESConfiguration</code></a> with arguments appropriate to the problem being considered.</p><pre><code class="language-">function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)</code></pre><p>Choose an Explicit Single-rate Solver from the existing <a href="../../../APIs/Numerics/ODESolvers/ODESolvers/#ODESolvers-docs-1">ODESolvers</a> options. Apply the outer constructor to define the <code>ode_solver</code>. The 1D-IMEX method is less appropriate for the problem given the current mesh aspect ratio (1:1).</p><pre><code class="language-julia">    ode_solver = ClimateMachine.ExplicitSolverType(
+end</code></pre><h2 id="config-helper-1"><a class="docs-heading-anchor" href="#config-helper-1">Model Configuration</a><a class="docs-heading-anchor-permalink" href="#config-helper-1" title="Permalink"></a></h2><p>We define a configuration function to assist in prescribing the physical model. The purpose of this is to populate the <a href="generated/Atmos/@ref LESConfig"><code>ClimateMachine.AtmosLESConfiguration</code></a> with arguments appropriate to the problem being considered.</p><pre><code class="language-julia">function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
+
+    # Choose an Explicit Single-rate Solver from the existing [ODESolvers](@ref
+    # ODESolvers-docs) options. Apply the outer constructor to define the
+    # `ode_solver`.
+    # The 1D-IMEX method is less appropriate for the problem given the current
+    # mesh aspect ratio (1:1).
+    ode_solver = ClimateMachine.ExplicitSolverType(
         solver_method = LSRK144NiegemannDiehlBusch,
-    )</code></pre><pre><code class="language-none">ExplicitSolverType(ClimateMachine.ODESolvers.LSRK144NiegemannDiehlBusch)</code></pre><p>If the user prefers a multi-rate explicit time integrator, the ode_solver above can be replaced with</p><p><code>ode_solver = ClimateMachine.MultirateSolverType(    fast_model = AtmosAcousticGravityLinearModel,    slow_method = LSRK144NiegemannDiehlBusch,    fast_method = LSRK144NiegemannDiehlBusch,    timestep_ratio = 10, )</code></p><pre><code class="language-julia">    #See [ODESolvers](@ref ODESolvers-docs) for all of the available solvers.</code></pre><p>Since we want four tracers, we specify this and include the appropriate diffusivity scaling coefficients (normally these would be physically informed but for this demonstration we use integers corresponding to the tracer index identifier)</p><pre><code class="language-">    ntracers = 4
-    δ_χ = SVector{ntracers, FT}(1, 2, 3, 4)</code></pre><p>To assemble <code>AtmosModel</code> with no tracers, set <code>tracers = NoTracers()</code>.</p><p>The model coefficient for the turbulence closure is defined via the <a href="https://CliMA.github.io/CLIMAParameters.jl/latest/">CLIMAParameters package</a> A reference state for the linearisation step is also defined.</p><pre><code class="language-">    T_surface = FT(300)
+    )
+    # If the user prefers a multi-rate explicit time integrator,
+    # the ode_solver above can be replaced with
+    #
+    # `ode_solver = ClimateMachine.MultirateSolverType(
+    #    fast_model = AtmosAcousticGravityLinearModel,
+    #    slow_method = LSRK144NiegemannDiehlBusch,
+    #    fast_method = LSRK144NiegemannDiehlBusch,
+    #    timestep_ratio = 10,
+    # )`
+    ##See [ODESolvers](@ref ODESolvers-docs) for all of the available solvers.
+
+
+    # Since we want four tracers, we specify this and include the appropriate
+    # diffusivity scaling coefficients (normally these would be physically
+    # informed but for this demonstration we use integers corresponding to the
+    # tracer index identifier)
+    ntracers = 4
+    δ_χ = SVector{ntracers, FT}(1, 2, 3, 4)
+    # To assemble `AtmosModel` with no tracers, set `tracers = NoTracers()`.
+
+    # The model coefficient for the turbulence closure is defined via the
+    # [CLIMAParameters
+    # package](https://CliMA.github.io/CLIMAParameters.jl/latest/) A reference
+    # state for the linearisation step is also defined.
+    T_surface = FT(300)
     T_min_ref = FT(0)
     T_profile = DryAdiabaticProfile{FT}(param_set, T_surface, T_min_ref)
-    ref_state = HydrostaticState(T_profile)</code></pre><p>The fun part! Here we assemble the <code>AtmosModel</code>.</p><pre><code class="language-">    #md # !!! note
-    #md #     Docs on model subcomponent options can be found here:
-    #md #     - [`param_set`](https://CliMA.github.io/CLIMAParameters.jl/latest/)
-    #md #     - [`turbulence`](@ref Turbulence-Closures-docs)
-    #md #     - [`hyperdiffusion`](@ref Hyperdiffusion-docs)
-    #md #     - [`source`](@ref atmos-sources)
-    #md #     - [`tracers`](@ref Tracers-docs)
-    #md #     - [`init_state`](@ref init)
+    ref_state = HydrostaticState(T_profile)
+
+    # The fun part! Here we assemble the `AtmosModel`.
+    ##md # !!! note
+    ##md #     Docs on model subcomponent options can be found here:
+    ##md #     - [`param_set`](https://CliMA.github.io/CLIMAParameters.jl/latest/)
+    ##md #     - [`turbulence`](@ref Turbulence-Closures-docs)
+    ##md #     - [`hyperdiffusion`](@ref Hyperdiffusion-docs)
+    ##md #     - [`source`](@ref atmos-sources)
+    ##md #     - [`tracers`](@ref Tracers-docs)
+    ##md #     - [`init_state`](@ref init)
 
     _C_smag = FT(C_smag(param_set))
     model = AtmosModel{FT}(
@@ -65,7 +99,11 @@ end</code></pre><h2 id="config-helper-1"><a class="docs-heading-anchor" href="#c
         tracers = NTracers{ntracers, FT}(δ_χ),        # Tracer model with diffusivity coefficients
         ref_state = ref_state,                        # Reference state
         init_state_conservative = init_risingbubble!, # Apply the initial condition
-    )</code></pre><p>Finally, we pass a <code>Problem Name</code> string, the mesh information, and the model type to  the [<code>AtmosLESConfiguration</code>] object.</p><pre><code class="language-">    config = ClimateMachine.AtmosLESConfiguration(
+    )
+
+    # Finally, we pass a `Problem Name` string, the mesh information, and the
+    # model type to  the [`AtmosLESConfiguration`] object.
+    config = ClimateMachine.AtmosLESConfiguration(
         &quot;DryRisingBubble&quot;,       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
@@ -78,7 +116,7 @@ end</code></pre><h2 id="config-helper-1"><a class="docs-heading-anchor" href="#c
         model = model,           # Model type
     )
     return config
-end</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p><code>Keywords</code> are used to specify some arguments (see appropriate source files).</p></div></div><h2 id="config_diagnostics-1"><a class="docs-heading-anchor" href="#config_diagnostics-1">Diagnostics</a><a class="docs-heading-anchor-permalink" href="#config_diagnostics-1" title="Permalink"></a></h2><p>Here we define the diagnostic configuration specific to this problem.</p><pre><code class="language-">function config_diagnostics(driver_config)
+end</code></pre><pre><code class="language-none">config_risingbubble (generic function with 1 method)</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p><code>Keywords</code> are used to specify some arguments (see appropriate source files).</p></div></div><h2 id="config_diagnostics-1"><a class="docs-heading-anchor" href="#config_diagnostics-1">Diagnostics</a><a class="docs-heading-anchor-permalink" href="#config_diagnostics-1" title="Permalink"></a></h2><p>Here we define the diagnostic configuration specific to this problem.</p><pre><code class="language-julia">function config_diagnostics(driver_config)
     interval = &quot;10000steps&quot;
     dgngrp = setup_atmos_default_diagnostics(
         AtmosLESConfigType(),
@@ -88,7 +126,20 @@ end</code></pre><div class="admonition is-info"><header class="admonition-header
     return ClimateMachine.DiagnosticsConfiguration([dgngrp])
 end
 
-function main()</code></pre><p>These are essentially arguments passed to the <a href="#config-helper-1"><code>config_risingbubble</code></a> function.  For type consistency we explicitly define the problem floating-precision.</p><pre><code class="language-julia">    FT = Float64</code></pre><pre><code class="language-none">Float64</code></pre><p>We need to specify the polynomial order for the DG discretization, effective resolution, simulation end-time, the domain bounds, and the courant-number for the time-integrator. Note how the time-integration components <code>solver_config</code> are distinct from the spatial / model components in <code>driver_config</code>. <code>init_on_cpu</code> is a helper keyword argument that forces problem initialisation on CPU (thereby allowing the use of random seeds, spline interpolants and other special functions at the initialisation step.)</p><pre><code class="language-julia">    N = 4
+function main()
+    # These are essentially arguments passed to the
+    # [`config_risingbubble`](@ref config-helper) function.  For type
+    # consistency we explicitly define the problem floating-precision.
+    FT = Float64
+    # We need to specify the polynomial order for the DG discretization,
+    # effective resolution, simulation end-time, the domain bounds, and the
+    # courant-number for the time-integrator. Note how the time-integration
+    # components `solver_config` are distinct from the spatial / model
+    # components in `driver_config`. `init_on_cpu` is a helper keyword argument
+    # that forces problem initialisation on CPU (thereby allowing the use of
+    # random seeds, spline interpolants and other special functions at the
+    # initialisation step.)
+    N = 4
     Δh = FT(125)
     Δv = FT(125)
     resolution = (Δh, Δh, Δv)
@@ -96,7 +147,16 @@ function main()</code></pre><p>These are essentially arguments passed to the <a 
     ymax = FT(500)
     zmax = FT(10000)
     t0 = FT(0)
-    timeend = FT(1000)</code></pre><pre><code class="language-none">1000.0</code></pre><p>Use up to 20 if ode_solver is the multi-rate LRRK144. CFL = FT(15)</p><p>Use up to 1.7 if ode_solver is the single rate LSRK144.</p><pre><code class="language-julia">    CFL = FT(1.7)</code></pre><pre><code class="language-none">1.7</code></pre><p>Assign configurations so they can be passed to the <code>invoke!</code> function</p><pre><code class="language-">    driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
+    timeend = FT(1000)
+
+    # Use up to 20 if ode_solver is the multi-rate LRRK144.
+    # CFL = FT(15)
+
+    # Use up to 1.7 if ode_solver is the single rate LSRK144.
+    CFL = FT(1.7)
+
+    # Assign configurations so they can be passed to the `invoke!` function
+    driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,
@@ -104,10 +164,17 @@ function main()</code></pre><p>These are essentially arguments passed to the <a 
         init_on_cpu = true,
         Courant_number = CFL,
     )
-    dgn_config = config_diagnostics(driver_config)</code></pre><p>Invoke solver (calls <code>solve!</code> function for time-integrator), pass the driver, solver and diagnostic config information.</p><pre><code class="language-">    result = ClimateMachine.invoke!(
+    dgn_config = config_diagnostics(driver_config)
+
+    # Invoke solver (calls `solve!` function for time-integrator), pass the driver, solver and diagnostic config
+    # information.
+    result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
         user_callbacks = (),
         check_euclidean_distance = true,
-    )</code></pre><p>Check that the solution norm is reasonable.</p><pre><code class="language-">    @test isapprox(result, FT(1); atol = 1.5e-3)
-end</code></pre><p>The experiment definition is now complete. Time to run it.</p><h2 id="Running-the-Experiment-1"><a class="docs-heading-anchor" href="#Running-the-Experiment-1">Running the Experiment</a><a class="docs-heading-anchor-permalink" href="#Running-the-Experiment-1" title="Permalink"></a></h2><p><code>julia --project /experiments/AtmosLES/risingbubble.jl</code> will run the experiment from the main ClimateMachine.jl directory, with diagnostics output at the intervals specified in <a href="#config_diagnostics-1"><code>config_diagnostics</code></a>.  You can also prescribe command line arguments (docs pending, <code>Driver.jl</code>) for simulation update and output specifications.  For rapid turnaround, we recommend that you run this experiment on a GPU.</p><h2 id="output-viz-1"><a class="docs-heading-anchor" href="#output-viz-1">Output Visualisation</a><a class="docs-heading-anchor-permalink" href="#output-viz-1" title="Permalink"></a></h2><p>See the <code>ClimateMachine</code> <a href="../../../GettingStarted/RunningClimateMachine/#ClimateMachine-args-1">command line arguments</a> for generating output.</p><p>Given VTK output,</p><ul><li><a href="https://wci.llnl.gov/simulation/computer-codes/visit/">VisIt</a></li><li><a href="https://wci.llnl.gov/simulation/computer-codes/visit/">Paraview</a></li></ul><p>are two commonly used programs for <code>.vtu</code> files.</p><p>For NetCDF or JLD2 diagnostics you may use any of the following tools: Julia&#39;s <a href="https://github.com/Alexander-Barth/NCDatasets.jl"><code>NCDatasets</code></a> and <a href="https://github.com/JuliaIO/JLD2.jl"><code>JLD2</code></a> packages with a suitable</p><p>or the known and quick NCDF visualization tool: <a href="https://meteora.ucsd.edu/~pierce/ncview_home_page.html"><code>ncview</code></a> plotting program.</p><pre><code class="language-">main()</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../heldsuarez/">« Dry Idealized GCM</a><a class="docs-footer-nextpage" href="../../Microphysics/ex_1_saturation_adjustment/">Saturation adjustment »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 11 June 2020 18:40">Thursday 11 June 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    )
+
+    # Check that the solution norm is reasonable.
+    @test isapprox(result, FT(1); atol = 1.5e-3)
+end</code></pre><pre><code class="language-none">main (generic function with 1 method)</code></pre><p>The experiment definition is now complete. Time to run it.</p><h2 id="Running-the-Experiment-1"><a class="docs-heading-anchor" href="#Running-the-Experiment-1">Running the Experiment</a><a class="docs-heading-anchor-permalink" href="#Running-the-Experiment-1" title="Permalink"></a></h2><p><code>julia --project /experiments/AtmosLES/risingbubble.jl</code> will run the experiment from the main ClimateMachine.jl directory, with diagnostics output at the intervals specified in <a href="#config_diagnostics-1"><code>config_diagnostics</code></a>.  You can also prescribe command line arguments (docs pending, <code>Driver.jl</code>) for simulation update and output specifications.  For rapid turnaround, we recommend that you run this experiment on a GPU.</p><h2 id="output-viz-1"><a class="docs-heading-anchor" href="#output-viz-1">Output Visualisation</a><a class="docs-heading-anchor-permalink" href="#output-viz-1" title="Permalink"></a></h2><p>See the <code>ClimateMachine</code> <a href="../../../GettingStarted/RunningClimateMachine/#ClimateMachine-args-1">command line arguments</a> for generating output.</p><p>Given VTK output,</p><ul><li><a href="https://wci.llnl.gov/simulation/computer-codes/visit/">VisIt</a></li><li><a href="https://wci.llnl.gov/simulation/computer-codes/visit/">Paraview</a></li></ul><p>are two commonly used programs for <code>.vtu</code> files.</p><p>For NetCDF or JLD2 diagnostics you may use any of the following tools: Julia&#39;s <a href="https://github.com/Alexander-Barth/NCDatasets.jl"><code>NCDatasets</code></a> and <a href="https://github.com/JuliaIO/JLD2.jl"><code>JLD2</code></a> packages with a suitable</p><p>or the known and quick NCDF visualization tool: <a href="https://meteora.ucsd.edu/~pierce/ncview_home_page.html"><code>ncview</code></a> plotting program.</p><pre><code class="language-">main()</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../heldsuarez/">« Dry Idealized GCM</a><a class="docs-footer-nextpage" href="../../Microphysics/ex_1_saturation_adjustment/">Saturation adjustment »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 11 June 2020 18:59">Thursday 11 June 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
