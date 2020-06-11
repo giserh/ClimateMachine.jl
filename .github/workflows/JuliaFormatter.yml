@@ -10,7 +10,7 @@ jobs:
       with:
         fetch-depth: 0
     - run: git fetch origin
-    - uses: julia-actions/setup-julia@latest
+    - uses: julia-actions/setup-julia@v1.1.6
       with:
         version: 1.4
     - name: Apply JuliaFormatter

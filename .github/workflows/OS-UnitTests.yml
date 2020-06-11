@@ -8,17 +8,18 @@ on:
 
 jobs:
   test-os:
-    runs-on: ${{ matrix.os }}
-    matrix:
-      os: [ubuntu-latest, windows-latest, macos-latest]
     strategy:
       fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v2.2.0
 
     - name: Set up Julia
-      uses: julia-actions/setup-julia@latest
+      uses: julia-actions/setup-julia@v1.1.6
       with:
         version: 1.4
 
