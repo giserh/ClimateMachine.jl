@@ -1,5 +1,5 @@
 status = [
-  "azure-ci",
+  "test-os",
   "ci/slurmci",
   "docs-build",
   "format"
