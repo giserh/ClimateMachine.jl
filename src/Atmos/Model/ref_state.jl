@@ -74,7 +74,8 @@ function atmos_init_aux!(
     aux.ref_state.ρ = ρ
     aux.ref_state.p = p
     RH = m.relative_humidity
-    (T, q_pt) = temperature_and_humidity_from_virtual_temperature(atmos.param_set, T_virt, RH, p)
+    phase_type = PhaseEquil
+    (T, q_pt) = temperature_and_humidity_from_virtual_temperature(atmos.param_set, T_virt, ρ, RH, phase_type)
 
     # Update temperature to be exactly consistent with
     # p, ρ, and q_pt
@@ -86,6 +87,6 @@ function atmos_init_aux!(
     aux.ref_state.T = T
     e_kin = F(0)
     e_pot = gravitational_potential(atmos.orientation, aux)
-    aux.ref_state.ρe = ρ * total_energy(atmos.param_set, e_kin, e_pot, ts)
+    aux.ref_state.ρe = ρ * total_energy(e_kin, e_pot, ts)
 end
 
