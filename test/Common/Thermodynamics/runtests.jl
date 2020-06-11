@@ -795,7 +795,7 @@ end
         T_virt = virtual_temperature.(Ref(param_set), T, ρ, q_pt)
         @test all(T_virt ≈ gas_constant_air.(Ref(param_set), q_pt) ./ _R_d .* T)
 
-        T_rec_qpt_rec = air_temperature_from_virtual_temperature.(
+        T_rec_qpt_rec = temperature_and_humidity_from_virtual_temperature.(
             Ref(param_set),
             T_virt,
             ρ,

@@ -33,7 +33,7 @@ export air_temperature_from_liquid_ice_pottemp,
 export air_temperature_from_liquid_ice_pottemp_non_linear
 export vapor_specific_humidity
 export virtual_temperature
-export air_temperature_from_virtual_temperature
+export temperature_and_humidity_from_virtual_temperature
 export air_temperature_from_ideal_gas_law
 export condensate, has_condensate
 
@@ -1434,7 +1434,7 @@ dry_pottemp(ts::ThermodynamicState) = dry_pottemp(
 )
 
 """
-    air_temperature_from_virtual_temperature(param_set, T_virt, ρ, RH)
+    temperature_and_humidity_from_virtual_temperature(param_set, T_virt, ρ, RH)
 
 The air temperature and `q_tot` where
 
@@ -1444,7 +1444,7 @@ The air temperature and `q_tot` where
  - `RH` relative humidity
  - `phase_type` a thermodynamic state type
 """
-function air_temperature_from_virtual_temperature(
+function temperature_and_humidity_from_virtual_temperature(
     param_set::APS,
     T_virt::FT,
     ρ::FT,
@@ -1469,7 +1469,7 @@ function air_temperature_from_virtual_temperature(
         maxiter,
     )
     if !sol.converged
-        @print("maxiter reached in air_temperature_from_virtual_temperature:\n")
+        @print("maxiter reached in temperature_and_humidity_from_virtual_temperature:\n")
         @print("    T_virt=",T_virt, ", RH=",RH, ", ρ=",ρ, ", T = ", sol.root, ", maxiter=",maxiter, ", tol=",tol,"\n")
     end
     T = sol.root
