@@ -138,7 +138,7 @@ end
 @testset "$(@__FILE__)" begin
 
     nt = 0
-    include("ocean_gyre_refvals.jl")
+    include("refvals/ocean_gyre_refvals.jl")
 
     # BCs are
     # ( Side BCs,
